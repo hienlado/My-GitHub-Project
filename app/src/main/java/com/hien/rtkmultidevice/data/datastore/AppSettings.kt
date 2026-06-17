@@ -69,6 +69,16 @@ class AppSettings @Inject constructor(
          * True nếu user đã bật ghi đè kinh tuyến trục.
          */
         private val KEY_CM_OVERRIDE_ENABLED = booleanPreferencesKey("coord_cm_override_enabled")
+
+        // ── Thu thập điểm (Survey) ──────────────────────────
+        /** Bật âm báo trạng thái fix (Single/Float/Fixed) khi đo. Mặc định: bật. */
+        private val KEY_SURVEY_SOUND_ENABLED   = booleanPreferencesKey("survey_sound_enabled")
+
+        /**
+         * Chỉ cho lưu điểm khi đạt RTK FIXED.
+         * Mặc định: false (cho lưu mọi trạng thái có tín hiệu).
+         */
+        private val KEY_SURVEY_REQUIRE_FIXED   = booleanPreferencesKey("survey_require_fixed")
     }
 
     // ── NTRIP Config ─────────────────────────────────────────
@@ -142,7 +152,35 @@ class AppSettings @Inject constructor(
         }
     }
 
+    // ── Survey Settings ───────────────────────────────────────
+
+    /** Cài đặt thu thập điểm — âm báo fix + ràng buộc lưu điểm */
+    val surveySettingsFlow: Flow<SurveySettings> = context.dataStore.data.map { prefs ->
+        SurveySettings(
+            soundEnabled  = prefs[KEY_SURVEY_SOUND_ENABLED] ?: true,
+            requireFixed  = prefs[KEY_SURVEY_REQUIRE_FIXED] ?: false
+        )
+    }
+
+    suspend fun setSurveySoundEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_SURVEY_SOUND_ENABLED] = enabled }
+    }
+
+    suspend fun setSurveyRequireFixed(required: Boolean) {
+        context.dataStore.edit { it[KEY_SURVEY_REQUIRE_FIXED] = required }
+    }
+
     // ── Data classes ─────────────────────────────────────────
+
+    /**
+     * Cài đặt màn hình thu thập điểm.
+     * @param soundEnabled  Phát âm báo theo trạng thái fix khi đo
+     * @param requireFixed  Chỉ cho lưu điểm khi đạt RTK FIXED
+     */
+    data class SurveySettings(
+        val soundEnabled : Boolean = true,
+        val requireFixed : Boolean = false
+    )
 
     /**
      * Cài đặt múi chiếu toạ độ.

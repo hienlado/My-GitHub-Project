@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.LabelOff
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
 import com.hien.rtkmultidevice.core.network.CellularNetworkHelper
@@ -94,18 +95,28 @@ fun SurveyScreen(
     val targetEpochs      by viewModel.targetEpochs.collectAsStateWithLifecycle()
     // Feature CAD đang stakeout — highlight + nhãn số hiệu đỉnh trên bản đồ Survey
     val stakeFeatureId    by viewModel.stakeFeatureId.collectAsStateWithLifecycle()
+    // Cài đặt thu thập: âm báo fix + ràng buộc chỉ lưu FIXED
+    val surveySettings    by viewModel.surveySettings.collectAsStateWithLifecycle()
 
     var selectedTab      by remember { mutableIntStateOf(0) }
     var deleteTarget     by remember { mutableStateOf<SurveyPoint?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
     var showCustomExport by remember { mutableStateOf(false) }
     var showLabelMenu    by remember { mutableStateOf(false) }
+    var showSettingsMenu by remember { mutableStateOf(false) }
     var showTileMenu     by remember { mutableStateOf(false) }
     var selectedTile     by remember { mutableStateOf(MapTileSource.GOOGLE_NORMAL) }   // mặc định Google Maps
     var labelConfig      by remember { mutableStateOf(MapLabelConfig()) }
     var followGps        by remember { mutableStateOf(true) }
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+
+    // ── Âm báo trạng thái fix (Single/Float/Fixed) ──────────
+    val fixBeeper = rememberFixStateBeeper()
+    val beeperScope = rememberCoroutineScope()
+    LaunchedEffect(gnss.fixQuality, surveySettings.soundEnabled) {
+        fixBeeper.update(gnss.fixQuality, surveySettings.soundEnabled, beeperScope)
+    }
 
     // ── Vector layer import ─────────────────────────────────
     // Layer CAD dùng chung (VectorLayerHolder) — import ở Map/Stakeout cũng thấy ở đây
@@ -284,6 +295,47 @@ fun SurveyScreen(
                                 }
                             }
                         }
+                        // Cài đặt thu thập: âm báo + ràng buộc lưu FIXED
+                        Box {
+                            CompactActionIcon(
+                                icon = Icons.Default.Settings,
+                                contentDescription = "Cài đặt đo",
+                                tint = if (surveySettings.requireFixed) Color(0xFFFFE082) else Color.White
+                            ) { showSettingsMenu = true }
+                            DropdownMenu(
+                                expanded         = showSettingsMenu,
+                                onDismissRequest = { showSettingsMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Âm báo trạng thái fix", fontSize = 13.sp) },
+                                    onClick = { viewModel.setSoundEnabled(!surveySettings.soundEnabled) },
+                                    leadingIcon = {
+                                        Checkbox(
+                                            checked = surveySettings.soundEnabled,
+                                            onCheckedChange = null,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text("Chỉ lưu khi RTK FIXED", fontSize = 13.sp)
+                                            Text("Chặn lưu điểm Single/Float/DGPS", fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    },
+                                    onClick = { viewModel.setRequireFixed(!surveySettings.requireFixed) },
+                                    leadingIcon = {
+                                        Checkbox(
+                                            checked = surveySettings.requireFixed,
+                                            onCheckedChange = null,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                )
+                            }
+                        }
                         // Căn chỉnh layer (chỉ hiện khi có layer)
                         if (importedLayer != null) {
                             CompactActionIcon(Icons.Default.Tune, "Căn chỉnh toạ độ", tint = Color(0xFFFFE082)) {
@@ -348,6 +400,7 @@ fun SurveyScreen(
                     followGps         = followGps,
                     vectorLayer       = importedLayer,
                     stakeFeatureId    = stakeFeatureId,
+                    requireFixed      = surveySettings.requireFixed,
                     averagingSession  = averagingSession,
                     isAveraging       = isAveraging,
                     targetEpochs      = targetEpochs,
@@ -515,6 +568,8 @@ private fun MapMeasureTab(
     vectorLayer       : VectorLayerImporter.VectorLayer? = null,
     /** Feature CAD đang stakeout — highlight + nhãn số hiệu đỉnh */
     stakeFeatureId    : Int? = null,
+    /** Chỉ cho lưu khi đạt RTK FIXED — đổi trạng thái nút Lưu */
+    requireFixed      : Boolean = false,
     averagingSession  : AveragingSession? = null,
     isAveraging       : Boolean = false,
     targetEpochs      : Int = 30,
@@ -636,9 +691,11 @@ private fun MapMeasureTab(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            // Khi bật "chỉ FIXED" mà chưa đạt FIXED → khoá nút lưu
+                            val blockedByFix = requireFixed && gnss.fixQuality != 4
                             Button(
                                 onClick  = onSave,
-                                enabled  = gnss.hasFix && !isSaving,
+                                enabled  = gnss.hasFix && !isSaving && !blockedByFix,
                                 modifier = Modifier.weight(1f),
                                 colors   = ButtonDefaults.buttonColors(
                                     containerColor = when (gnss.fixQuality) {
@@ -651,7 +708,14 @@ private fun MapMeasureTab(
                                 if (isSaving) CircularProgressIndicator(Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
                                 else Icon(Icons.Default.Save, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text(if (gnss.hasFix) "Lưu (${gnss.fixLabel})" else "Chưa có GPS", fontSize = 12.sp)
+                                Text(
+                                    when {
+                                        !gnss.hasFix  -> "Chưa có GPS"
+                                        blockedByFix  -> "Chờ FIXED (${gnss.fixLabel})"
+                                        else          -> "Lưu (${gnss.fixLabel})"
+                                    },
+                                    fontSize = 12.sp
+                                )
                             }
                             OutlinedButton(
                                 onClick  = { showAvgMode = true },

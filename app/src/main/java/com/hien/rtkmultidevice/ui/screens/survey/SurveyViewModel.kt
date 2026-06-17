@@ -7,6 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hien.rtkmultidevice.core.gnss.GnssDataManager
+import com.hien.rtkmultidevice.data.datastore.AppSettings
 import com.hien.rtkmultidevice.domain.model.AveragingSession
 import com.hien.rtkmultidevice.domain.model.EpochSample
 import com.hien.rtkmultidevice.domain.model.GnssStatus
@@ -53,8 +54,21 @@ class SurveyViewModel @Inject constructor(
     private val surveyRepo     : ISurveyPointRepository,
     private val stakeHolder    : StakeoutTargetHolder,
     private val vectorLayerHolder: VectorLayerHolder,
+    private val appSettings    : AppSettings,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    // ── Cài đặt thu thập điểm: âm báo fix + ràng buộc lưu ──────
+    val surveySettings: StateFlow<AppSettings.SurveySettings> = appSettings.surveySettingsFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings.SurveySettings())
+
+    fun setSoundEnabled(enabled: Boolean) {
+        viewModelScope.launch { appSettings.setSurveySoundEnabled(enabled) }
+    }
+
+    fun setRequireFixed(required: Boolean) {
+        viewModelScope.launch { appSettings.setSurveyRequireFixed(required) }
+    }
 
     /** projectId được truyền qua navigation argument "survey/{projectId}" */
     val projectId: Int = savedStateHandle["projectId"] ?: -1
@@ -135,6 +149,13 @@ class SurveyViewModel @Inject constructor(
 
         if (!gnss.hasFix) {
             _error.value = "Chưa có tín hiệu GPS — không thể lưu điểm"
+            return
+        }
+
+        // Ràng buộc: nếu bật "chỉ lưu khi FIXED" mà chưa đạt FIXED (4) → chặn
+        if (surveySettings.value.requireFixed && gnss.fixQuality != 4) {
+            _error.value = "Chỉ cho lưu điểm khi đạt RTK FIXED. " +
+                           "Hiện tại: ${gnss.fixLabel}. Tắt ràng buộc trong Cài đặt nếu cần."
             return
         }
 
@@ -449,6 +470,12 @@ class SurveyViewModel @Inject constructor(
         }
         if (session.count < 2) {
             _error.value = "Cần ít nhất 2 epoch để tính trung bình"
+            return
+        }
+        // Ràng buộc chỉ-FIXED áp dụng cho cả điểm trung bình (theo fix chủ đạo)
+        if (surveySettings.value.requireFixed && session.dominantFixQuality != 4) {
+            _error.value = "Chỉ cho lưu điểm khi đạt RTK FIXED. " +
+                           "Phiên trung bình chủ yếu ở trạng thái khác FIXED."
             return
         }
         val proj = project.value ?: return

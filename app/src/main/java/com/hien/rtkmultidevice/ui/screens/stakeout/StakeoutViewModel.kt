@@ -490,13 +490,20 @@ class StakeoutViewModel @Inject constructor(
     /**
      * Định vị TUYẾN — tính khoảng cách vuông góc từ vị trí hiện tại đến tuyến.
      *
-     * Thuật toán: chiếu vuông góc điểm hiện tại lên TỪNG đoạn của tuyến
-     * (clamp t ∈ [0,1] để xử lý ngoài phạm vi đoạn), chọn đoạn có khoảng
-     * cách nhỏ nhất. Kết quả:
+     * Thuật toán: chiếu vuông góc điểm hiện tại lên TỪNG đoạn của tuyến,
+     * chọn đoạn có khoảng cách nhỏ nhất. Kết quả:
      *   • distanceM  = khoảng cách vuông góc (đến chân vuông góc)
      *   • azimuthDeg = hướng đi đến chân vuông góc (la bàn dẫn hướng)
      *   • stationM   = lý trình của chân vuông góc tính từ đầu tuyến
      *   • sideLabel  = vị trí hiện tại nằm Trái/Phải tuyến (theo chiều tuyến)
+     *
+     * QUAN TRỌNG — xử lý ngoài phạm vi 2 đầu mút:
+     *   • Tuyến THẲNG (đúng 2 đỉnh): KHÔNG clamp t → chiếu vuông góc lên
+     *     ĐƯỜNG THẲNG KÉO DÀI VÔ HẠN. Khi RTK ra ngoài đoạn AB, app vẫn
+     *     báo khoảng cách trực giao tới đường thẳng (lý trình có thể âm hoặc
+     *     vượt chiều dài), KHÔNG nhảy về khoảng cách tới điểm đầu mút.
+     *   • Tuyến GÃY KHÚC (≥3 đỉnh): clamp t ∈ [0,1] cho từng đoạn như cũ —
+     *     không kéo dài đoạn nội bộ ra vô hạn (sẽ sai hình học tại các nút).
      */
     private fun computeLineResult(
         gnss   : GnssStatus,
@@ -506,6 +513,9 @@ class StakeoutViewModel @Inject constructor(
         val vn = gnss.vn2000 ?: return StakeoutResult.NoGnss
         val pN = vn.northing
         val pE = vn.easting
+
+        // Tuyến thẳng = đúng 2 đỉnh → chiếu lên đường thẳng vô hạn (không clamp)
+        val isStraightLine = line.vertices.size == 2
 
         var bestDist    = Double.MAX_VALUE
         var bestFootN   = 0.0
@@ -523,8 +533,10 @@ class StakeoutViewModel @Inject constructor(
             if (len2 < 1e-9) continue
             val segLen = sqrt(len2)
 
-            // Tham số chiếu t ∈ [0,1] trên đoạn
-            val t = (((pN - n1) * dN + (pE - e1) * dE) / len2).coerceIn(0.0, 1.0)
+            // Tham số chiếu t. Đường thẳng → để tự do (có thể <0 hoặc >1);
+            // tuyến gãy khúc → giới hạn trong đoạn [0,1].
+            val tRaw = ((pN - n1) * dN + (pE - e1) * dE) / len2
+            val t = if (isStraightLine) tRaw else tRaw.coerceIn(0.0, 1.0)
             val fN = n1 + t * dN
             val fE = e1 + t * dE
             val d  = sqrt((pN - fN) * (pN - fN) + (pE - fE) * (pE - fE))

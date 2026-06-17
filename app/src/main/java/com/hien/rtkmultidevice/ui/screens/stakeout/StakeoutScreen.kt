@@ -449,6 +449,21 @@ fun StakeoutScreen(
                 viewModel.selectSavedPoint(point)
                 showPointPicker = false
             },
+            onSelectLine = { p1, p2 ->
+                // Định vị TUYẾN từ 2 điểm import/đã lưu (A→B)
+                val name = "${p1.pointCode}–${p2.pointCode}"
+                viewModel.setLineTarget(
+                    name,
+                    listOf(
+                        Pair(p1.northing, p1.easting),
+                        Pair(p2.northing, p2.easting)
+                    )
+                )
+                showPointPicker = false
+                beeperScope.launch {
+                    snackbarHost.showSnackbar("✓ Định vị tuyến $name — khoảng cách trực giao tới đường thẳng")
+                }
+            },
             onDismiss = { showPointPicker = false }
         )
     }
@@ -1293,54 +1308,129 @@ private fun NoGnssHint() {
 
 @Composable
 private fun PointPickerDialog(
-    points    : List<SurveyPoint>,
-    onSelect  : (SurveyPoint) -> Unit,
-    onDismiss : () -> Unit
+    points       : List<SurveyPoint>,
+    onSelect     : (SurveyPoint) -> Unit,
+    onSelectLine : (SurveyPoint, SurveyPoint) -> Unit,
+    onDismiss    : () -> Unit
 ) {
+    // false = chọn 1 điểm (định vị điểm); true = chọn 2 điểm (định vị tuyến)
+    var lineMode by remember { mutableStateOf(false) }
+    // Các điểm đã chọn trong chế độ tuyến (tối đa 2: A rồi B)
+    var picked   by remember { mutableStateOf<List<SurveyPoint>>(emptyList()) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title  = { Text("Chọn điểm thiết kế") },
+        title  = {
+            Column {
+                Text(if (lineMode) "Định vị tuyến từ 2 điểm" else "Chọn điểm thiết kế",
+                    fontWeight = FontWeight.Bold)
+                Text(
+                    if (lineMode) {
+                        when (picked.size) {
+                            0    -> "Chọn điểm ĐẦU tuyến (A)"
+                            1    -> "Đã chọn A=${picked[0].pointCode} • chọn điểm CUỐI (B)"
+                            else -> "A=${picked[0].pointCode} → B=${picked[1].pointCode}"
+                        }
+                    } else "Chạm một điểm để định vị",
+                    fontSize = 11.sp,
+                    color    = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
         text   = {
-            androidx.compose.foundation.lazy.LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.heightIn(max = 400.dp)
-            ) {
-                items(points.size) { idx ->
-                    val point = points[idx]
-                    Card(
-                        onClick = { onSelect(point) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier          = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+            Column {
+                // ── Chuyển chế độ Điểm ↔ Tuyến ──────────────
+                Row(
+                    Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = !lineMode,
+                        onClick  = { lineMode = false; picked = emptyList() },
+                        label    = { Text("Định vị điểm", fontSize = 12.sp) },
+                        leadingIcon = { Icon(Icons.Default.GpsFixed, null, Modifier.size(16.dp)) }
+                    )
+                    FilterChip(
+                        selected = lineMode,
+                        onClick  = { lineMode = true; picked = emptyList() },
+                        label    = { Text("Định vị tuyến (2 điểm)", fontSize = 12.sp) },
+                        leadingIcon = { Icon(Icons.Default.Timeline, null, Modifier.size(16.dp)) }
+                    )
+                }
+
+                if (points.isEmpty()) {
+                    Text("Chưa có điểm nào. Hãy đo hoặc import điểm trước.",
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 12.dp))
+                }
+
+                androidx.compose.foundation.lazy.LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.heightIn(max = 380.dp)
+                ) {
+                    items(points.size) { idx ->
+                        val point = points[idx]
+                        val order = picked.indexOf(point)            // -1 nếu chưa chọn
+                        val isPicked = order >= 0
+                        Card(
+                            onClick = {
+                                if (!lineMode) {
+                                    onSelect(point)
+                                } else {
+                                    picked = when {
+                                        isPicked            -> picked - point          // bỏ chọn
+                                        picked.size >= 2    -> listOf(picked[1], point) // thay A cũ
+                                        else                -> picked + point
+                                    }
+                                }
+                            },
+                            colors = if (isPicked)
+                                CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                            else CardDefaults.cardColors(),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(
-                                point.pointCode,
-                                fontWeight = FontWeight.Bold,
-                                fontSize   = 14.sp
-                            )
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    "X: ${"%.3f".format(point.northing)}",
-                                    fontSize   = 11.sp,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                                Text(
-                                    "Y: ${"%.3f".format(point.easting)}",
-                                    fontSize   = 11.sp,
-                                    fontFamily = FontFamily.Monospace
-                                )
+                            Row(
+                                modifier          = Modifier.fillMaxWidth().padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (lineMode && isPicked) {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.primary,
+                                            shape = androidx.compose.foundation.shape.CircleShape
+                                        ) {
+                                            Text(
+                                                if (order == 0) "A" else "B",
+                                                color = Color.White, fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(point.pointCode, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text("X: ${"%.3f".format(point.northing)}",
+                                        fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                                    Text("Y: ${"%.3f".format(point.easting)}",
+                                        fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                                }
                             }
                         }
                     }
                 }
             }
         },
-        confirmButton = {},
+        confirmButton = {
+            if (lineMode) {
+                Button(
+                    onClick = { onSelectLine(picked[0], picked[1]) },
+                    enabled = picked.size == 2
+                ) { Text("Định vị tuyến") }
+            }
+        },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Huỷ") }
         }
