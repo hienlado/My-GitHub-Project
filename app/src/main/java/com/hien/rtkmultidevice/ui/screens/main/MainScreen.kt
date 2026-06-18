@@ -1,10 +1,17 @@
 package com.hien.rtkmultidevice.ui.screens.main
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -12,13 +19,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hien.rtkmultidevice.core.connection.ConnectionState
+import kotlinx.coroutines.launch
 
 /**
  * MainScreen — Màn hình chính với 4 Tab bottom navigation.
@@ -46,6 +56,11 @@ fun MainScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     val snackbarHost = remember { SnackbarHostState() }
 
+    // ── Menu đẩy cạnh trái (giới thiệu tác giả / phiên bản / liên hệ) ──
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope       = rememberCoroutineScope()
+    val context     = LocalContext.current
+
     val isConnected = connectionState is ConnectionState.Connected
     val connLabel = when (connectionState) {
         is ConnectionState.Connected    -> connectionState.deviceName
@@ -63,10 +78,35 @@ fun MainScreen(
         }
     }
 
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            AppInfoDrawer(
+                onClose = { scope.launch { drawerState.close() } },
+                onEmail = {
+                    val i = Intent(Intent.ACTION_SENDTO).apply {
+                        data = Uri.parse("mailto:hienlado@gmail.com")
+                        putExtra(Intent.EXTRA_SUBJECT, "Phản hồi ứng dụng RTK Field")
+                    }
+                    runCatching { context.startActivity(i) }
+                },
+                onPhone = {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:0941755858")))
+                    }
+                }
+            )
+        }
+    ) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        Icon(Icons.Default.Menu, "Mở menu", tint = Color.White)
+                    }
+                },
                 title = {
                     Column {
                         Text("RTK Field", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
@@ -147,6 +187,182 @@ fun MainScreen(
                 modifier     = Modifier.padding(padding),
                 onCoord      = onNavigateCoord,
                 onComingSoon = { pendingFeature.value = it }
+            )
+        }
+    }
+    }  // end ModalNavigationDrawer
+}
+
+// ════════════════════════════════════════════════════════
+// AppInfoDrawer — Menu đẩy cạnh trái: thương hiệu, tác giả, liên hệ
+// ════════════════════════════════════════════════════════
+
+@Composable
+private fun AppInfoDrawer(
+    onClose : () -> Unit,
+    onEmail : () -> Unit,
+    onPhone : () -> Unit
+) {
+    val context = LocalContext.current
+
+    // Lấy số hiệu phiên bản trực tiếp từ gói cài đặt → luôn khớp build.gradle
+    val (verName, verCode) = remember {
+        try {
+            val pi = context.packageManager.getPackageInfo(context.packageName, 0)
+            val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                pi.longVersionCode else @Suppress("DEPRECATION") pi.versionCode.toLong()
+            (pi.versionName ?: "1.0") to code
+        } catch (e: Exception) { "1.0" to 1L }
+    }
+
+    val primary     = MaterialTheme.colorScheme.primary
+    val primaryDark = primary.copy(red = primary.red * 0.65f, green = primary.green * 0.65f, blue = primary.blue * 0.65f)
+
+    ModalDrawerSheet(
+        modifier      = Modifier.fillMaxWidth(0.84f),
+        drawerShape   = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
+    ) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            // ── Header thương hiệu (gradient) ───────────────
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(primary, primaryDark)))
+                    .padding(20.dp)
+            ) {
+                Column {
+                    Surface(
+                        shape    = CircleShape,
+                        color    = Color.White.copy(alpha = 0.18f),
+                        modifier = Modifier.size(64.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.SatelliteAlt, null,
+                                tint = Color.White, modifier = Modifier.size(36.dp)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text("RTK Field", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Phần mềm thu thập số liệu RTK ngoài thực địa",
+                        color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, lineHeight = 16.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Surface(
+                        color = Color.White.copy(alpha = 0.20f),
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Text(
+                            "Phiên bản $verName  •  build $verCode",
+                            color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // ── Tác giả ─────────────────────────────────────
+            DrawerSectionTitle("TÁC GIẢ")
+            DrawerInfoRow(
+                icon     = Icons.Default.Person,
+                title    = "Trương Thế Hiển",
+                subtitle = "Kỹ sư Trắc địa Bản đồ"
+            )
+
+            HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+
+            // ── Liên hệ (bấm được) ──────────────────────────
+            DrawerSectionTitle("LIÊN HỆ")
+            DrawerInfoRow(
+                icon     = Icons.Default.Email,
+                title    = "Email",
+                subtitle = "hienlado@gmail.com",
+                onClick  = onEmail
+            )
+            DrawerInfoRow(
+                icon     = Icons.Default.Phone,
+                title    = "Điện thoại / Zalo",
+                subtitle = "0941 755 858",
+                onClick  = onPhone
+            )
+
+            HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+
+            // ── Giới thiệu ──────────────────────────────────
+            DrawerSectionTitle("GIỚI THIỆU")
+            Text(
+                "Ứng dụng đo đạc RTK/GNSS chuyên dụng: kết nối đầu thu, hiệu chỉnh " +
+                "NTRIP, hệ toạ độ VN-2000, thu thập điểm, đo tuyến, cắm mốc (stakeout) " +
+                "và xuất dữ liệu CSV/TXT cho công tác Trắc địa - Bản đồ.",
+                fontSize = 12.sp, lineHeight = 18.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "© 2026 Trương Thế Hiển. Mọi quyền được bảo lưu.",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DrawerSectionTitle(text: String) {
+    Text(
+        text,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 2.dp)
+    )
+}
+
+@Composable
+private fun DrawerInfoRow(
+    icon     : ImageVector,
+    title    : String,
+    subtitle : String,
+    onClick  : (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer,
+            modifier = Modifier.size(40.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(subtitle, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface)
+        }
+        if (onClick != null) {
+            Icon(
+                Icons.Default.ChevronRight, null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(20.dp)
             )
         }
     }
