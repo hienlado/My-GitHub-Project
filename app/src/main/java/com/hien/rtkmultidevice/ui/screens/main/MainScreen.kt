@@ -3,7 +3,10 @@ package com.hien.rtkmultidevice.ui.screens.main
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -19,10 +22,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -235,15 +241,32 @@ private fun AppInfoDrawer(
                     .padding(20.dp)
             ) {
                 Column {
-                    Surface(
-                        shape    = CircleShape,
-                        color    = Color.White.copy(alpha = 0.18f),
-                        modifier = Modifier.size(64.dp)
+                    // Avatar tác giả — nạp từ res/drawable/author_avatar nếu có,
+                    // không có thì hiện icon vệ tinh (app vẫn biên dịch bình thường).
+                    val avatarId = remember {
+                        context.resources.getIdentifier("author_avatar", "drawable", context.packageName)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(76.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.18f))
+                            .border(BorderStroke(2.dp, Color.White.copy(alpha = 0.7f)), CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        if (avatarId != 0) {
+                            Image(
+                                painter            = painterResource(avatarId),
+                                contentDescription = "Ảnh tác giả",
+                                contentScale       = ContentScale.Crop,
+                                // Ảnh chân dung dọc → canh mép trên để khung tròn ôm trọn khuôn mặt
+                                alignment          = Alignment.TopCenter,
+                                modifier           = Modifier.fillMaxSize().clip(CircleShape)
+                            )
+                        } else {
                             Icon(
                                 Icons.Default.SatelliteAlt, null,
-                                tint = Color.White, modifier = Modifier.size(36.dp)
+                                tint = Color.White, modifier = Modifier.size(40.dp)
                             )
                         }
                     }
@@ -300,8 +323,9 @@ private fun AppInfoDrawer(
             DrawerSectionTitle("GIỚI THIỆU")
             Text(
                 "Ứng dụng đo đạc RTK/GNSS chuyên dụng: kết nối đầu thu, hiệu chỉnh " +
-                "NTRIP, hệ toạ độ VN-2000, thu thập điểm, đo tuyến, cắm mốc (stakeout) " +
-                "và xuất dữ liệu CSV/TXT cho công tác Trắc địa - Bản đồ.",
+                "NTRIP, hệ toạ độ VN-2000, thu thập điểm, đo tuyến, cắm mốc (stakeout), " +
+                "xuất dữ liệu CSV/TXT và kết xuất dữ liệu bản đồ địa chính số cập nhật " +
+                "thường xuyên theo thời gian thực, phục vụ công tác Trắc địa - Bản đồ.",
                 fontSize = 12.sp, lineHeight = 18.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
