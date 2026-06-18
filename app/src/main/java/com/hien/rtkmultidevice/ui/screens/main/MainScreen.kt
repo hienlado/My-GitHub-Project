@@ -293,7 +293,7 @@ private fun AppInfoDrawer(
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(7.dp))
 
             // ── Tác giả ─────────────────────────────────────
             DrawerSectionTitle("TÁC GIẢ")
@@ -325,16 +325,16 @@ private fun AppInfoDrawer(
             // ── Giới thiệu ──────────────────────────────────
             DrawerSectionTitle("GIỚI THIỆU")
             Text(
-                "Ứng dụng đo đạc RTK/GNSS chuyên dụng: kết nối đầu thu, hiệu chỉnh " +
+                "Ứng dụng RTK/GNSS chuyên dụng: kết nối nhiều loại đầu thu, hiệu chỉnh " +
                 "NTRIP, hệ toạ độ VN-2000, thu thập điểm, đo tuyến, cắm mốc (stakeout), " +
-                "xuất dữ liệu CSV/TXT và kết xuất dữ liệu bản đồ địa chính số cập nhật " +
+                "xuất dữ liệu CSV/TXT và kết nối CloudServer bản đồ địa chính số cập nhật " +
                 "thường xuyên theo thời gian thực, phục vụ công tác Trắc địa - Bản đồ.",
-                fontSize = 12.sp, lineHeight = 18.sp,
+                fontSize = 12.sp, lineHeight = 16.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
             Text(
                 "© 2026 Trương Thế Hiển. Mọi quyền được bảo lưu.",
                 fontSize = 10.sp,
