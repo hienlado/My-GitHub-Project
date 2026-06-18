@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -259,8 +260,10 @@ private fun AppInfoDrawer(
                                 painter            = painterResource(avatarId),
                                 contentDescription = "Ảnh tác giả",
                                 contentScale       = ContentScale.Crop,
-                                // Ảnh chân dung dọc → canh mép trên để khung tròn ôm trọn khuôn mặt
-                                alignment          = Alignment.TopCenter,
+                                // Ảnh chân dung dọc: dịch khung nhìn xuống ~17% (bỏ bớt khoảng
+                                // trắng trên đầu) để khuôn mặt nâng lên, cân đối trong khung tròn.
+                                // verticalBias: -1f = sát mép trên, 0f = giữa.
+                                alignment          = BiasAlignment(horizontalBias = 0f, verticalBias = -0.5f),
                                 modifier           = Modifier.fillMaxSize().clip(CircleShape)
                             )
                         } else {
