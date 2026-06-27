@@ -199,7 +199,48 @@ fun StakeoutScreen(
                     else                      -> "Chưa chọn điểm thiết kế"
                 },
                 onBack   = onNavigateBack,
-                actions  = {
+                actions  = {}
+            )
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+
+        // ── Bản đồ nền toàn màn hình ─────────────────────
+        GnssMapView(
+            modifier    = Modifier.fillMaxSize(),
+            gnss        = gnssStatus,
+            points      = savedPoints,
+            followGps   = followGps,
+            tileSource  = selectedTile,
+            labelConfig = labelConfig,
+            targetPoint = targetGeoPoint,
+            targetLabel = targetName,
+            vectorLayer = importedLayer,
+            // Highlight: tuyến đang định vị, hoặc đối tượng đang chọn trong dialog
+            highlightFeatureId = targetLine?.featureId ?: actionFeature?.id ?: activeStakeFeatureId,
+            zoomControlsBottomPadding = if (targetCollapsed) 96.dp else 340.dp,
+            // Chạm node hoặc đường vector (DXF/SHP) → dialog Định vị điểm/tuyến
+            onVectorNodeTap = { feature, vidx ->
+                actionFeature = feature
+                actionIdx     = vidx
+            },
+            onScrolled  = { followGps = false }
+        )
+
+        // ── Cột icon thao tác dọc bên trái (bán trong suốt) ──
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(6.dp)
+                .background(Color.Black.copy(alpha = 0.32f), RoundedCornerShape(14.dp))
+                .padding(vertical = 2.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
                     // GPS Follow toggle
                     CompactActionIcon(
                         icon = if (followGps) Icons.Default.GpsFixed else Icons.Default.GpsNotFixed,
@@ -255,44 +296,14 @@ fun StakeoutScreen(
                     if (targetN.isNotEmpty() || targetE.isNotEmpty() || targetLine != null) {
                         CompactActionIcon(Icons.Default.Clear, "Xoá target", onClick = viewModel::clearTarget)
                     }
-                }
-            )
         }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-
-        // ── Bản đồ nền toàn màn hình ─────────────────────
-        GnssMapView(
-            modifier    = Modifier.fillMaxSize(),
-            gnss        = gnssStatus,
-            points      = savedPoints,
-            followGps   = followGps,
-            tileSource  = selectedTile,
-            labelConfig = labelConfig,
-            targetPoint = targetGeoPoint,
-            targetLabel = targetName,
-            vectorLayer = importedLayer,
-            // Highlight: tuyến đang định vị, hoặc đối tượng đang chọn trong dialog
-            highlightFeatureId = targetLine?.featureId ?: actionFeature?.id ?: activeStakeFeatureId,
-            zoomControlsBottomPadding = if (targetCollapsed) 96.dp else 340.dp,
-            // Chạm node hoặc đường vector (DXF/SHP) → dialog Định vị điểm/tuyến
-            onVectorNodeTap = { feature, vidx ->
-                actionFeature = feature
-                actionIdx     = vidx
-            },
-            onScrolled  = { followGps = false }
-        )
 
         // ── Badge layer vector (chạm để xoá layer) ────────
         importedLayer?.let { layer ->
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(top = 8.dp, start = 8.dp)
+                    .padding(top = 8.dp, start = 56.dp)
                     .clickable { viewModel.clearImportedLayer() },
                 color = Color(0xFF7B1FA2).copy(alpha = 0.9f),
                 shape = RoundedCornerShape(12.dp)

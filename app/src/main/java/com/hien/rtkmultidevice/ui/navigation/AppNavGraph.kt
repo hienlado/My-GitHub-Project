@@ -37,23 +37,15 @@ import com.hien.rtkmultidevice.ui.screens.gnss.GnssViewModel
 fun AppNavGraph(navController: NavHostController) {
     NavHost(
         navController    = navController,
-        startDestination = Screen.Connection.route
+        startDestination = Screen.Main.route
     ) {
 
         // ── Màn hình 1: Kết nối thiết bị ──────────────────
         composable(Screen.Connection.route) {
             ConnectionScreen(
-                onConnected = {
-                    navController.navigate(Screen.Main.route) {
-                        popUpTo(Screen.Connection.route) { inclusive = true }
-                    }
-                },
-                onSkip = {
-                    // Bỏ qua kết nối RTK → vào Main để dùng Stakeout/Survey offline
-                    navController.navigate(Screen.Main.route) {
-                        popUpTo(Screen.Connection.route) { inclusive = true }
-                    }
-                }
+                // Main là màn gốc; kết nối xong / bỏ qua → quay lại Main
+                onConnected = { navController.popBackStack() },
+                onSkip      = { navController.popBackStack() }
             )
         }
 

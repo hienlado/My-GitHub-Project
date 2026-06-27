@@ -61,7 +61,8 @@ fun MainScreen(
     onNavigateMap       : (Int) -> Unit,
     onNavigateCoord   : () -> Unit
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+    // Mở app vào thẳng trang chính, mặc định tab Thiết bị (index 1) để kết nối trước
+    var selectedTab by remember { mutableIntStateOf(1) }
     val snackbarHost = remember { SnackbarHostState() }
 
     // ── Menu đẩy cạnh trái (giới thiệu tác giả / phiên bản / liên hệ) ──

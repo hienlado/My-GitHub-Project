@@ -12,6 +12,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -239,7 +240,95 @@ fun SurveyScreen(
                     title    = project?.name ?: "Thu thập điểm",
                     subtitle = "${savedPoints.size} điểm đã lưu",
                     onBack   = onNavigateBack,
-                    actions  = {
+                    actions  = {}
+                )
+                // TabRow thu gọn (34dp, chữ 12sp)
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor   = MaterialTheme.colorScheme.primary,
+                    contentColor     = Color.White
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick  = { selectedTab = 0 },
+                        modifier = Modifier.height(34.dp)
+                    ) { Text("Đo điểm", fontSize = 12.sp) }
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick  = { selectedTab = 1 },
+                        modifier = Modifier.height(34.dp)
+                    ) { Text("Danh sách (${savedPoints.size})", fontSize = 12.sp) }
+                }
+            }
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            when (selectedTab) {
+                0 -> MapMeasureTab(
+                    modifier          = Modifier.fillMaxSize(),
+                    gnss              = gnss,
+                    savedPoints       = savedPoints,
+                    pointCode         = pointCode,
+                    note              = note,
+                    isSaving          = isSaving,
+                    tileSource        = selectedTile,
+                    labelConfig       = labelConfig,
+                    followGps         = followGps,
+                    vectorLayer       = importedLayer,
+                    stakeFeatureId    = stakeFeatureId,
+                    importedPoints    = importedMapPoints,
+                    importedLine      = importedLineGeo,
+                    requireFixed      = surveySettings.requireFixed,
+                    averagingSession  = averagingSession,
+                    isAveraging       = isAveraging,
+                    targetEpochs      = targetEpochs,
+                    onCodeChange      = viewModel::onPointCodeChange,
+                    onNoteChange      = viewModel::onNoteChange,
+                    onSave            = viewModel::savePoint,
+                    onStartAvg        = viewModel::startAveraging,
+                    onStopAvg         = viewModel::stopAveraging,
+                    onSaveAvg         = viewModel::saveAveragedPoint,
+                    onCancelAvg       = viewModel::cancelAveraging,
+                    onSetTargetEpochs = viewModel::setTargetEpochs,
+                    onScrolled        = { followGps = false }
+                )
+                1 -> EnhancedPointListTab(
+                    modifier     = Modifier.fillMaxSize(),
+                    points       = savedPoints,
+                    isExporting  = isExporting,
+                    onAdd        = viewModel::addManualPoint,
+                    onUpdate     = viewModel::updatePointEdited,
+                    onDeleteMany = viewModel::deletePoints,
+                    onSwapXY     = viewModel::swapXY,
+                    onImportFile = viewModel::importPointsFlexible,
+                    onExport     = viewModel::exportPointsFlexible
+                )
+            }
+            // FloatingGnssCard chỉ hiển thị ở tab Danh sách (tab 1) vì map tab có marker riêng
+            if (selectedTab == 1) {
+                FloatingGnssCard(
+                    gnss     = gnss,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 8.dp, end = 8.dp)
+                )
+            }
+
+            // ── Cột icon thao tác dọc bên trái (bán trong suốt) — chỉ ở tab Đo điểm ──
+            if (selectedTab == 0) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                        .background(Color.Black.copy(alpha = 0.32f), RoundedCornerShape(14.dp))
+                        .padding(vertical = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                         // Follow GPS toggle
                         CompactActionIcon(
                             icon = if (followGps) Icons.Default.GpsFixed else Icons.Default.GpsNotFixed,
@@ -362,82 +451,7 @@ fun SurveyScreen(
                             if (isExporting) CircularProgressIndicator(Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
                             else Icon(Icons.Default.FileDownload, "Xuất dữ liệu", Modifier.size(19.dp), tint = Color.White)
                         }
-                    }
-                )
-                // TabRow thu gọn (34dp, chữ 12sp)
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor   = MaterialTheme.colorScheme.primary,
-                    contentColor     = Color.White
-                ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick  = { selectedTab = 0 },
-                        modifier = Modifier.height(34.dp)
-                    ) { Text("Đo điểm", fontSize = 12.sp) }
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick  = { selectedTab = 1 },
-                        modifier = Modifier.height(34.dp)
-                    ) { Text("Danh sách (${savedPoints.size})", fontSize = 12.sp) }
                 }
-            }
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            when (selectedTab) {
-                0 -> MapMeasureTab(
-                    modifier          = Modifier.fillMaxSize(),
-                    gnss              = gnss,
-                    savedPoints       = savedPoints,
-                    pointCode         = pointCode,
-                    note              = note,
-                    isSaving          = isSaving,
-                    tileSource        = selectedTile,
-                    labelConfig       = labelConfig,
-                    followGps         = followGps,
-                    vectorLayer       = importedLayer,
-                    stakeFeatureId    = stakeFeatureId,
-                    importedPoints    = importedMapPoints,
-                    importedLine      = importedLineGeo,
-                    requireFixed      = surveySettings.requireFixed,
-                    averagingSession  = averagingSession,
-                    isAveraging       = isAveraging,
-                    targetEpochs      = targetEpochs,
-                    onCodeChange      = viewModel::onPointCodeChange,
-                    onNoteChange      = viewModel::onNoteChange,
-                    onSave            = viewModel::savePoint,
-                    onStartAvg        = viewModel::startAveraging,
-                    onStopAvg         = viewModel::stopAveraging,
-                    onSaveAvg         = viewModel::saveAveragedPoint,
-                    onCancelAvg       = viewModel::cancelAveraging,
-                    onSetTargetEpochs = viewModel::setTargetEpochs,
-                    onScrolled        = { followGps = false }
-                )
-                1 -> EnhancedPointListTab(
-                    modifier     = Modifier.fillMaxSize(),
-                    points       = savedPoints,
-                    isExporting  = isExporting,
-                    onAdd        = viewModel::addManualPoint,
-                    onUpdate     = viewModel::updatePointEdited,
-                    onDeleteMany = viewModel::deletePoints,
-                    onSwapXY     = viewModel::swapXY,
-                    onImportFile = viewModel::importPointsFlexible,
-                    onExport     = viewModel::exportPointsFlexible
-                )
-            }
-            // FloatingGnssCard chỉ hiển thị ở tab Danh sách (tab 1) vì map tab có marker riêng
-            if (selectedTab == 1) {
-                FloatingGnssCard(
-                    gnss     = gnss,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 8.dp, end = 8.dp)
-                )
             }
         }
     }

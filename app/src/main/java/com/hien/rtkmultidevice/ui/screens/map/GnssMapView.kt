@@ -173,16 +173,15 @@ fun GnssMapView(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 horizontalAlignment = Alignment.End
             ) {
-                // Fit to layer — chỉ hiện khi có vectorLayer
-                if (vectorLayer != null && !vectorLayer.isEmpty) {
-                    SmallFloatingActionButton(
-                        onClick = { fitToVectorLayer(mapViewRef.value, vectorLayer) },
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor   = MaterialTheme.colorScheme.onSecondaryContainer,
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(Icons.Default.CenterFocusStrong, "Fit layer", Modifier.size(18.dp))
-                    }
+                // Fit — LUÔN hiện; gom cả CAD (DXF/SHP) + điểm đo + tuyến import.
+                // Khi không có CAD vẫn fit theo các điểm đang hiển thị.
+                SmallFloatingActionButton(
+                    onClick = { fitToAll(mapViewRef.value, vectorLayer, points, designLine) },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
+                    contentColor   = MaterialTheme.colorScheme.onSecondaryContainer,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.CenterFocusStrong, "Fit", Modifier.size(18.dp))
                 }
 
                 // Zoom In
@@ -254,6 +253,40 @@ private fun fitToVectorLayer(mapView: MapView?, layer: VectorLayerImporter.Vecto
     mapView.post {
         mapView.zoomToBoundingBox(bbox, true, 60)
     }
+}
+
+/**
+ * Fit khung nhìn theo TẤT CẢ đối tượng đang hiển thị:
+ *   • CAD (DXF/SHP) — polyline + polygon + point
+ *   • Điểm đo / điểm import (lat-lon ≠ 0)
+ *   • Tuyến import (designLine)
+ * Khi không có CAD vẫn fit theo điểm; không có gì để fit thì bỏ qua.
+ */
+private fun fitToAll(
+    mapView    : MapView?,
+    layer      : VectorLayerImporter.VectorLayer?,
+    points     : List<SurveyPoint>,
+    designLine : List<GeoPoint>?
+) {
+    if (mapView == null) return
+    val all = mutableListOf<GeoPoint>()
+    if (layer != null && !layer.isEmpty) {
+        all += (layer.polylines + layer.polygons).flatten()
+        all += layer.points
+    }
+    points.forEach { if (it.latitude != 0.0 || it.longitude != 0.0) all += GeoPoint(it.latitude, it.longitude) }
+    designLine?.let { all += it }
+    if (all.isEmpty()) return
+
+    val minLat = all.minOf { it.latitude }; val maxLat = all.maxOf { it.latitude }
+    val minLon = all.minOf { it.longitude }; val maxLon = all.maxOf { it.longitude }
+    if (minLat == maxLat && minLon == maxLon) {
+        mapView.controller.animateTo(GeoPoint(minLat, minLon))
+        mapView.controller.setZoom(18.0)
+        return
+    }
+    val bbox = BoundingBox(maxLat, maxLon, minLat, minLon)
+    mapView.post { mapView.zoomToBoundingBox(bbox, true, 60) }
 }
 
 // ────────────────────────────────────────────────────────────
