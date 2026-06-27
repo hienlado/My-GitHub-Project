@@ -99,6 +99,11 @@ fun StakeoutScreen(
     val activeStakeFeatureId by viewModel.activeStakeFeatureId.collectAsStateWithLifecycle()
 
     var showPointPicker  by remember { mutableStateOf(false) }
+    var pickerLineMode   by remember { mutableStateOf(false) }
+    // Vào từ thẻ "Định vị tuyến" (Khảo sát/Đo tuyến) → tự mở picker chế độ tuyến
+    LaunchedEffect(Unit) {
+        if (StakeoutEntryFlags.consumeOpenLinePicker()) { pickerLineMode = true; showPointPicker = true }
+    }
     var showLabelMenu    by remember { mutableStateOf(false) }
     var showTileMenu     by remember { mutableStateOf(false) }
     var showAlignDialog  by remember { mutableStateOf(false) }
@@ -120,11 +125,12 @@ fun StakeoutScreen(
     val beeper           = rememberStakeoutBeeper(context)
     val beeperScope      = rememberCoroutineScope()
 
-    // Phát âm thanh khi tiếp cận target
+    // Âm báo dẫn hướng: chỉ 2 trường hợp — (1) đến gần mục tiêu,
+    // (2) đã vào trong phạm vi dung sai (bán kính chấp nhận).
     LaunchedEffect(result) {
         val r = result
         if (r is StakeoutResult.Active) {
-            beeper.updateDistance(r.distanceM, beeperScope)
+            beeper.updateDistance(r.distanceM, r.acceptRadius, beeperScope)
         } else {
             beeper.stop()
         }
@@ -445,13 +451,13 @@ fun StakeoutScreen(
     if (showPointPicker) {
         PointPickerDialog(
             points    = savedPoints,
+            startInLineMode = pickerLineMode,
             onSelect  = { point ->
                 viewModel.selectSavedPoint(point)
                 showPointPicker = false
             },
-            onSelectLine = { p1, p2 ->
+            onSelectLine = { name, p1, p2 ->
                 // Định vị TUYẾN từ 2 điểm import/đã lưu (A→B)
-                val name = "${p1.pointCode}–${p2.pointCode}"
                 viewModel.setLineTarget(
                     name,
                     listOf(
@@ -460,11 +466,12 @@ fun StakeoutScreen(
                     )
                 )
                 showPointPicker = false
+                pickerLineMode = false
                 beeperScope.launch {
                     snackbarHost.showSnackbar("✓ Định vị tuyến $name — khoảng cách trực giao tới đường thẳng")
                 }
             },
-            onDismiss = { showPointPicker = false }
+            onDismiss = { showPointPicker = false; pickerLineMode = false }
         )
     }
 
@@ -1308,15 +1315,18 @@ private fun NoGnssHint() {
 
 @Composable
 private fun PointPickerDialog(
-    points       : List<SurveyPoint>,
-    onSelect     : (SurveyPoint) -> Unit,
-    onSelectLine : (SurveyPoint, SurveyPoint) -> Unit,
-    onDismiss    : () -> Unit
+    points          : List<SurveyPoint>,
+    onSelect        : (SurveyPoint) -> Unit,
+    onSelectLine    : (name: String, p1: SurveyPoint, p2: SurveyPoint) -> Unit,
+    startInLineMode : Boolean = false,
+    onDismiss       : () -> Unit
 ) {
     // false = chọn 1 điểm (định vị điểm); true = chọn 2 điểm (định vị tuyến)
-    var lineMode by remember { mutableStateOf(false) }
+    var lineMode by remember { mutableStateOf(startInLineMode) }
     // Các điểm đã chọn trong chế độ tuyến (tối đa 2: A rồi B)
     var picked   by remember { mutableStateOf<List<SurveyPoint>>(emptyList()) }
+    // Tên tuyến (chế độ tuyến) — đặt tên rồi mới chọn điểm đầu/cuối
+    var lineName by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1355,6 +1365,18 @@ private fun PointPickerDialog(
                         onClick  = { lineMode = true; picked = emptyList() },
                         label    = { Text("Định vị tuyến (2 điểm)", fontSize = 12.sp) },
                         leadingIcon = { Icon(Icons.Default.Timeline, null, Modifier.size(16.dp)) }
+                    )
+                }
+
+                // Ô đặt tên tuyến (chỉ ở chế độ tuyến)
+                if (lineMode) {
+                    OutlinedTextField(
+                        value         = lineName,
+                        onValueChange = { lineName = it.take(40) },
+                        label         = { Text("Tên tuyến") },
+                        placeholder   = { Text("VD: Tuyến AB, Ranh T001...") },
+                        singleLine    = true,
+                        modifier      = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                     )
                 }
 
@@ -1426,7 +1448,10 @@ private fun PointPickerDialog(
         confirmButton = {
             if (lineMode) {
                 Button(
-                    onClick = { onSelectLine(picked[0], picked[1]) },
+                    onClick = {
+                        val nm = lineName.ifBlank { "${picked[0].pointCode}–${picked[1].pointCode}" }
+                        onSelectLine(nm, picked[0], picked[1])
+                    },
                     enabled = picked.size == 2
                 ) { Text("Định vị tuyến") }
             }

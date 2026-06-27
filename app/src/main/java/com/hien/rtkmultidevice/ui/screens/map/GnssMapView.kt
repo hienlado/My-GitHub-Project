@@ -72,10 +72,14 @@ fun GnssMapView(
      * null = không vẽ node tappable (chỉ vẽ polyline).
      */
     onVectorNodeTap      : ((feature: VectorLayerImporter.VectorFeature, vertexIdx: Int) -> Unit)? = null,
+    /** Tuyến tạo từ điểm import — vẽ polyline (lat/lon). null = không vẽ. */
+    designLine           : List<GeoPoint>? = null,
     onScrolled           : () -> Unit = {}
 ) {
     val mapViewRef    = remember { mutableStateOf<MapView?>(null) }
     val lifecycleOwner = LocalLifecycleOwner.current
+    // Đã canh khung nhìn theo lần fix GPS đầu tiên sau khi vào màn hình chưa
+    val didInitialFix = remember { mutableStateOf(false) }
 
     Box(modifier) {
 
@@ -101,10 +105,27 @@ fun GnssMapView(
                 MapView(ctx).apply {
                     setTileSource(tileSource.toOsmdroidSource())
                     setMultiTouchControls(true)
-                    // Center mặc định = Trung tâm Việt Nam (Đà Nẵng) ở zoom 6
-                    // để hiện bản đồ ngay khi chưa có GPS — tránh thấy biển hoặc màn xám
-                    controller.setZoom(6.0)
-                    controller.setCenter(GeoPoint(16.0, 107.5))
+                    // Khôi phục khung nhìn gần nhất (zoom + tâm) để KHÔNG bị thu nhỏ
+                    // mỗi lần vào lại màn hình. Lần đầu chưa có tâm → hiện rộng VN.
+                    val savedCenter = MapCameraState.lastCenter
+                    if (savedCenter != null) {
+                        controller.setZoom(MapCameraState.lastZoom)
+                        controller.setCenter(savedCenter)
+                    } else {
+                        controller.setZoom(6.0)
+                        controller.setCenter(GeoPoint(16.0, 107.5))
+                    }
+                    // Lưu lại zoom/tâm mỗi khi user kéo hoặc phóng to/thu nhỏ
+                    addMapListener(object : org.osmdroid.events.MapListener {
+                        override fun onScroll(e: org.osmdroid.events.ScrollEvent?): Boolean {
+                            mapCenter?.let { MapCameraState.save(zoomLevelDouble, it.latitude, it.longitude) }
+                            return false
+                        }
+                        override fun onZoom(e: org.osmdroid.events.ZoomEvent?): Boolean {
+                            mapCenter?.let { MapCameraState.save(zoomLevelDouble, it.latitude, it.longitude) }
+                            return false
+                        }
+                    })
                     mapViewRef.value = this
                 }
             },
@@ -113,6 +134,18 @@ fun GnssMapView(
                     // Đổi UA TRƯỚC khi đổi nguồn tile
                     Configuration.getInstance().userAgentValue = MapTileSource.userAgentFor(tileSource)
                     mapView.setTileSource(tileSource.toOsmdroidSource())
+                }
+                // Lần fix GPS ĐẦU TIÊN sau khi vào màn hình: nếu đang ở mức rộng
+                // (chưa có khung nhìn lưu) thì phóng tới mức làm việc; nếu đã khôi
+                // phục khung nhìn cũ thì GIỮ NGUYÊN mức zoom đó. Luôn canh theo GPS.
+                if (followGps && gnss.hasFix && !didInitialFix.value) {
+                    didInitialFix.value = true
+                    if (mapView.zoomLevelDouble < 12.0) {
+                        mapView.controller.setZoom(
+                            MapCameraState.lastZoom.coerceAtLeast(MapCameraState.DEFAULT_WORK_ZOOM)
+                        )
+                    }
+                    mapView.controller.setCenter(GeoPoint(gnss.latitude, gnss.longitude))
                 }
                 // Vector layer: vẽ có cache — chỉ tái tạo khi layer/highlight thay đổi
                 updateGnssVectorOverlays(mapView, vectorLayer, highlightFeatureId, onVectorNodeTap)
@@ -125,6 +158,7 @@ fun GnssMapView(
                     targetPoint = targetPoint,
                     targetLabel = targetLabel,
                     onMarkerTap = onMarkerTap,
+                    designLine  = designLine,
                     onScrolled  = onScrolled
                 )
             }
@@ -235,6 +269,7 @@ private fun updateGnssMapOverlays(
     targetPoint : GeoPoint?,
     targetLabel : String,
     onMarkerTap : (SurveyPoint) -> Unit,
+    designLine  : List<GeoPoint>?,
     onScrolled  : () -> Unit
 ) {
     // Chỉ xoá overlay GPS/điểm đo — GIỮ NGUYÊN vector overlays (đã cache riêng)
@@ -305,6 +340,17 @@ private fun updateGnssMapOverlays(
             icon = createTargetDrawable(mapView.context)
         }
         mapView.overlays.add(targetMarker)
+    }
+
+    // ── Tuyến import (định vị tuyến) — polyline cam ──────
+    if (designLine != null && designLine.size >= 2) {
+        val pl = Polyline(mapView).apply {
+            infoWindow = null
+            outlinePaint.color = AndroidColor.parseColor("#FFFF6D00")   // cam
+            outlinePaint.strokeWidth = 5f
+            setPoints(designLine)
+        }
+        mapView.overlays.add(pl)
     }
 
     // ── GPS vị trí hiện tại ──────────────────────────────

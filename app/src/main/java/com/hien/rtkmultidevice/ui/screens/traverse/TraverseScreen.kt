@@ -27,6 +27,8 @@ import com.hien.rtkmultidevice.ui.components.FloatingGnssCard
 import com.hien.rtkmultidevice.ui.screens.survey.PointFormatDialog
 import com.hien.rtkmultidevice.ui.screens.map.GnssMapView
 import com.hien.rtkmultidevice.ui.screens.map.MapLabelConfig
+import com.hien.rtkmultidevice.ui.screens.stakeout.StakeoutEntryFlags
+import androidx.compose.material.icons.filled.Route
 import org.osmdroid.util.GeoPoint
 
 /**
@@ -40,7 +42,8 @@ import org.osmdroid.util.GeoPoint
 @Composable
 fun TraverseScreen(
     projectId       : Int,
-    onNavigateBack  : () -> Unit,
+    onNavigateBack     : () -> Unit,
+    onNavigateStakeout : () -> Unit = {},
     viewModel       : TraverseViewModel = hiltViewModel()
 ) {
     val traverses     by viewModel.traverses.collectAsStateWithLifecycle()
@@ -140,6 +143,13 @@ fun TraverseScreen(
                             }
                         }
                     } else {
+                        // Định vị tuyến từ 2 điểm (đo/import) → mở Stakeout chế độ tuyến
+                        IconButton(onClick = {
+                            StakeoutEntryFlags.openLinePicker = true
+                            onNavigateStakeout()
+                        }) {
+                            Icon(Icons.Default.Route, "Định vị tuyến", tint = Color.White)
+                        }
                         IconButton(onClick = { showNewDialog = true }) {
                             Icon(Icons.Default.Add, "Tạo tuyến mới", tint = Color.White)
                         }

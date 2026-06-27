@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -54,6 +55,7 @@ class SurveyViewModel @Inject constructor(
     private val surveyRepo     : ISurveyPointRepository,
     private val stakeHolder    : StakeoutTargetHolder,
     private val vectorLayerHolder: VectorLayerHolder,
+    private val importedHolder : com.hien.rtkmultidevice.ui.screens.stakeout.ImportedPointsHolder,
     private val appSettings    : AppSettings,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
@@ -98,6 +100,30 @@ class SurveyViewModel @Inject constructor(
     // ── Danh sách điểm đã lưu ──────────────────────────────────
     val savedPoints: StateFlow<List<SurveyPoint>> = surveyRepo.getPointsByProject(projectId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // ── Điểm Import (chia sẻ) — chuyển VN-2000 → lat/lon để vẽ trên bản đồ ──
+    // Điểm import từ CSV chỉ có N,E (lat/lon = 0). Dùng KTT của dự án để
+    // chuyển ngược về WGS-84 cho hiển thị trên màn khảo sát.
+    val importedMapPoints: StateFlow<List<SurveyPoint>> =
+        combine(importedHolder.points, project) { pts, proj ->
+            val cm = proj?.centralMeridian?.takeIf { it > 0.0 }
+            pts.mapNotNull { p ->
+                if (p.latitude != 0.0 || p.longitude != 0.0) p
+                else VectorLayerImporter.inverseVn2000(p.northing, p.easting, cm)
+                    ?.let { g -> p.copy(latitude = g.latitude, longitude = g.longitude) }
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Tuyến tạo từ điểm import (đang định vị) → danh sách lat/lon để vẽ polyline. */
+    val importedLineGeo: StateFlow<List<org.osmdroid.util.GeoPoint>?> =
+        combine(stakeHolder.activeLine, project) { line, proj ->
+            if (line == null || line.size < 2) null
+            else {
+                val cm = proj?.centralMeridian?.takeIf { it > 0.0 }
+                line.mapNotNull { (n, e) -> VectorLayerImporter.inverseVn2000(n, e, cm) }
+                    .takeIf { it.size >= 2 }
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     // ── Form state ─────────────────────────────────────────────
     private val _pointCode = MutableStateFlow("")

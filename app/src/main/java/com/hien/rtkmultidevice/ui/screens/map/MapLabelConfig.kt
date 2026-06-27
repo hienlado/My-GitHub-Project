@@ -16,5 +16,9 @@ data class MapLabelConfig(
     /** Hiển thị HDOP */
     val showHdop       : Boolean = false,
     /** Hiển thị tọa độ VN-2000 (X, Y) */
-    val showVn2000     : Boolean = false
+    val showVn2000     : Boolean = false,
+    /** Hiển thị tập điểm Import (CSV/TXT) trên màn khảo sát */
+    val showImportedPoints : Boolean = true,
+    /** Hiển thị tuyến tạo từ điểm Import (2 điểm) trên màn khảo sát */
+    val showImportedLine   : Boolean = true
 )

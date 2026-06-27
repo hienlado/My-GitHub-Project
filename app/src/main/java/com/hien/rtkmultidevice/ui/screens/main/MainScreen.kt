@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hien.rtkmultidevice.core.connection.ConnectionState
+import com.hien.rtkmultidevice.ui.screens.stakeout.StakeoutEntryFlags
 import kotlinx.coroutines.launch
 
 /**
@@ -645,6 +646,15 @@ private fun SurveyTab(
             FeatureCard("Đo tuyến", "Traverse\npolyline",
                 Icons.Default.Timeline, Color(0xFF4527A0),
                 enabled = hasProject, onClick = onTraverse)
+        }
+        item {
+            FeatureCard("Định vị tuyến", "Dẫn hướng\ntới tuyến",
+                Icons.Default.Route, Color(0xFF00838F),
+                onClick = {
+                    // Đặt cờ → StakeoutScreen tự mở picker chọn 2 điểm (đặt tên → đầu/cuối)
+                    StakeoutEntryFlags.openLinePicker = true
+                    onStakeout()
+                })
         }
         item {
             FeatureCard("Bố trí bề mặt", "DTM/TIN\ngrading",

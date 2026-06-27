@@ -82,6 +82,8 @@ fun SurveyScreen(
     val gnss        by viewModel.gnssStatus.collectAsStateWithLifecycle()
     val project     by viewModel.project.collectAsStateWithLifecycle()
     val savedPoints by viewModel.savedPoints.collectAsStateWithLifecycle()
+    val importedMapPoints by viewModel.importedMapPoints.collectAsStateWithLifecycle()
+    val importedLineGeo by viewModel.importedLineGeo.collectAsStateWithLifecycle()
     val pointCode   by viewModel.pointCode.collectAsStateWithLifecycle()
     val note        by viewModel.note.collectAsStateWithLifecycle()
     val isSaving    by viewModel.isSaving.collectAsStateWithLifecycle()
@@ -111,12 +113,9 @@ fun SurveyScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
-    // ── Âm báo trạng thái fix (Single/Float/Fixed) ──────────
-    val fixBeeper = rememberFixStateBeeper()
-    val beeperScope = rememberCoroutineScope()
-    LaunchedEffect(gnss.fixQuality, surveySettings.soundEnabled) {
-        fixBeeper.update(gnss.fixQuality, surveySettings.soundEnabled, beeperScope)
-    }
+    // ── Âm báo xác nhận khi lưu điểm ────────────────────────
+    // (Trạng thái Single/Float/Fixed phân biệt bằng MÀU trên thanh trạng thái.)
+    val saveBeeper = rememberSaveBeeper()
 
     // ── Vector layer import ─────────────────────────────────
     // Layer CAD dùng chung (VectorLayerHolder) — import ở Map/Stakeout cũng thấy ở đây
@@ -183,9 +182,10 @@ fun SurveyScreen(
         }
     }
 
-    // Snackbar lưu thành công
+    // Snackbar + âm báo khi lưu điểm thành công
     LaunchedEffect(feedback) {
         feedback?.let {
+            saveBeeper.beepSaved(surveySettings.soundEnabled)
             snackbarHostState.showSnackbar("✓ Đã lưu điểm $it")
             viewModel.clearSavedFeedback()
         }
@@ -279,7 +279,9 @@ fun SurveyScreen(
                                     Triple("Độ cao (h)",   labelConfig.showElevation,  { labelConfig = labelConfig.copy(showElevation  = !labelConfig.showElevation) }),
                                     Triple("Fix quality",  labelConfig.showFixQuality, { labelConfig = labelConfig.copy(showFixQuality = !labelConfig.showFixQuality) }),
                                     Triple("HDOP",         labelConfig.showHdop,       { labelConfig = labelConfig.copy(showHdop       = !labelConfig.showHdop) }),
-                                    Triple("VN-2000 X/Y",  labelConfig.showVn2000,     { labelConfig = labelConfig.copy(showVn2000     = !labelConfig.showVn2000) })
+                                    Triple("VN-2000 X/Y",  labelConfig.showVn2000,     { labelConfig = labelConfig.copy(showVn2000     = !labelConfig.showVn2000) }),
+                                    Triple("Điểm Import",  labelConfig.showImportedPoints, { labelConfig = labelConfig.copy(showImportedPoints = !labelConfig.showImportedPoints) }),
+                                    Triple("Tuyến Import", labelConfig.showImportedLine,   { labelConfig = labelConfig.copy(showImportedLine   = !labelConfig.showImportedLine) })
                                 ).forEach { (label, checked, toggle) ->
                                     DropdownMenuItem(
                                         text = { Text(label, fontSize = 13.sp) },
@@ -307,7 +309,7 @@ fun SurveyScreen(
                                 onDismissRequest = { showSettingsMenu = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("Âm báo trạng thái fix", fontSize = 13.sp) },
+                                    text = { Text("Âm báo khi lưu điểm", fontSize = 13.sp) },
                                     onClick = { viewModel.setSoundEnabled(!surveySettings.soundEnabled) },
                                     leadingIcon = {
                                         Checkbox(
@@ -400,6 +402,8 @@ fun SurveyScreen(
                     followGps         = followGps,
                     vectorLayer       = importedLayer,
                     stakeFeatureId    = stakeFeatureId,
+                    importedPoints    = importedMapPoints,
+                    importedLine      = importedLineGeo,
                     requireFixed      = surveySettings.requireFixed,
                     averagingSession  = averagingSession,
                     isAveraging       = isAveraging,
@@ -568,6 +572,8 @@ private fun MapMeasureTab(
     vectorLayer       : VectorLayerImporter.VectorLayer? = null,
     /** Feature CAD đang stakeout — highlight + nhãn số hiệu đỉnh */
     stakeFeatureId    : Int? = null,
+    importedPoints    : List<SurveyPoint> = emptyList(),
+    importedLine      : List<org.osmdroid.util.GeoPoint>? = null,
     /** Chỉ cho lưu khi đạt RTK FIXED — đổi trạng thái nút Lưu */
     requireFixed      : Boolean = false,
     averagingSession  : AveragingSession? = null,
@@ -585,13 +591,17 @@ private fun MapMeasureTab(
 ) {
     var formExpanded by remember { mutableStateOf(true) }
     var showAvgMode  by remember { mutableStateOf(false) }
+    // Gộp điểm Import + tuyến Import vào bản đồ theo công tắc ẩn/hiện
+    val mapPoints = if (labelConfig.showImportedPoints) savedPoints + importedPoints else savedPoints
+    val mapLine   = if (labelConfig.showImportedLine) importedLine else null
 
     Box(modifier = modifier) {
         // ── Map toàn màn hình ────────────────────────────
         GnssMapView(
             modifier    = Modifier.fillMaxSize(),
             gnss        = gnss,
-            points      = savedPoints,
+            points      = mapPoints,
+            designLine  = mapLine,
             followGps   = followGps,
             tileSource  = tileSource,
             labelConfig = labelConfig,

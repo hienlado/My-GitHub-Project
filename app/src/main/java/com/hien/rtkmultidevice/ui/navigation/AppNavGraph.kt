@@ -164,7 +164,11 @@ fun AppNavGraph(navController: NavHostController) {
             val pId = backStackEntry.arguments?.getInt("projectId") ?: -1
             TraverseScreen(
                 projectId      = pId,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateStakeout = {
+                    runCatching { navController.navigate(Screen.Stakeout.createRoute(pId)) }
+                        .onFailure { android.util.Log.e("AppNavGraph", "Nav Stakeout lỗi: ${it.message}") }
+                }
             )
         }
 

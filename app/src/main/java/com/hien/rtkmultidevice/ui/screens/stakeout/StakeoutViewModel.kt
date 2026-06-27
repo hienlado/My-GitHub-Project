@@ -55,6 +55,7 @@ class StakeoutViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val savedStateHandle: SavedStateHandle,
     private val targetHolder  : StakeoutTargetHolder,
+    private val importedHolder: ImportedPointsHolder,
     private val vectorLayerHolder: com.hien.rtkmultidevice.ui.screens.map.VectorLayerHolder
 ) : ViewModel() {
 
@@ -126,8 +127,9 @@ class StakeoutViewModel @Inject constructor(
     /** Điểm đã lưu trong DB của dự án */
     private val _dbPoints = MutableStateFlow<List<SurveyPoint>>(emptyList())
 
-    /** Điểm import từ file (CSV/TXT/DXF/SHP) — giữ riêng để không bị DB ghi đè */
-    private val _importedPoints = MutableStateFlow<List<SurveyPoint>>(emptyList())
+    /** Điểm import từ file (CSV/TXT/DXF/SHP) — DÙNG CHUNG qua ImportedPointsHolder
+     *  để màn Khảo sát cũng thấy và bật/tắt hiển thị được. */
+    private val _importedPoints = importedHolder.points
 
     /** Danh sách điểm để chọn nhanh = điểm DB + điểm import */
     val savedPoints: StateFlow<List<SurveyPoint>> =
@@ -143,7 +145,7 @@ class StakeoutViewModel @Inject constructor(
 
     fun clearImportedLayer() {
         vectorLayerHolder.clear()
-        _importedPoints.value = emptyList()
+        importedHolder.clear()
     }
 
     /** Áp dụng layer đã căn chỉnh (đổi KTT / dịch ΔN-ΔE) từ CoordAlignDialog */
@@ -222,8 +224,10 @@ class StakeoutViewModel @Inject constructor(
         _targetNorthing.value = "%.3f".format(java.util.Locale.US, point.northing)
         _targetEasting.value  = "%.3f".format(java.util.Locale.US, point.easting)
         _targetName.value     = point.pointCode
-        // Điểm đã lưu không thuộc đối tượng CAD → tắt nhãn số hiệu đỉnh
+        // Điểm đã lưu không thuộc đối tượng CAD → tắt nhãn số hiệu đỉnh + tuyến
         targetHolder.setActiveFeature(null)
+        targetHolder.setActiveLine(null)
+        _targetLine.value = null
     }
 
     /**
@@ -237,6 +241,7 @@ class StakeoutViewModel @Inject constructor(
         _targetNorthing.value = "%.3f".format(java.util.Locale.US, northing)
         _targetEasting.value  = "%.3f".format(java.util.Locale.US, easting)
         targetHolder.setActiveFeature(featureId)
+        targetHolder.setActiveLine(null)   // chế độ điểm → không có tuyến
     }
 
     /**
@@ -253,6 +258,7 @@ class StakeoutViewModel @Inject constructor(
         _targetNorthing.value = ""
         _targetEasting.value  = ""
         targetHolder.setActiveFeature(featureId)
+        targetHolder.setActiveLine(vertices)   // chia sẻ để Survey vẽ tuyến
     }
 
     /** Xoá target hiện tại (cả điểm lẫn tuyến) */
@@ -262,6 +268,7 @@ class StakeoutViewModel @Inject constructor(
         _targetEasting.value  = ""
         _targetName.value     = ""
         targetHolder.setActiveFeature(null)
+        targetHolder.setActiveLine(null)
     }
 
     fun clearError() { _error.value = null }
@@ -380,10 +387,10 @@ class StakeoutViewModel @Inject constructor(
                     return@launch
                 }
 
-                // Gộp với danh sách hiện tại (không trùng mã)
+                // Gộp với danh sách hiện tại (không trùng mã) — vào holder dùng chung
                 val existing = savedPoints.value.map { it.pointCode }.toSet()
                 val newPoints = imported.filter { it.pointCode !in existing }
-                _importedPoints.value = _importedPoints.value + newPoints
+                importedHolder.addPoints(newPoints)
 
                 _error.value = "✓ Import thành công ${newPoints.size}/${imported.size} điểm"
             } catch (e: Exception) {
