@@ -70,6 +70,11 @@ class AppSettings @Inject constructor(
          */
         private val KEY_CM_OVERRIDE_ENABLED = booleanPreferencesKey("coord_cm_override_enabled")
 
+        // ── Hiệu chỉnh về mốc chuẩn (localization tịnh tiến ΔN/ΔE) ──
+        private val KEY_CALIB_N       = doublePreferencesKey("coord_calib_n")
+        private val KEY_CALIB_E       = doublePreferencesKey("coord_calib_e")
+        private val KEY_CALIB_ENABLED = booleanPreferencesKey("coord_calib_enabled")
+
         // ── Thu thập điểm (Survey) ──────────────────────────
         /** Bật âm báo trạng thái fix (Single/Float/Fixed) khi đo. Mặc định: bật. */
         private val KEY_SURVEY_SOUND_ENABLED   = booleanPreferencesKey("survey_sound_enabled")
@@ -139,7 +144,10 @@ class AppSettings @Inject constructor(
             zoneWidthDeg           = prefs[KEY_ZONE_WIDTH]            ?: 3,
             centralMeridianOverride = if (prefs[KEY_CM_OVERRIDE_ENABLED] == true)
                 prefs[KEY_CM_OVERRIDE]
-            else null
+            else null,
+            calibN       = prefs[KEY_CALIB_N] ?: 0.0,
+            calibE       = prefs[KEY_CALIB_E] ?: 0.0,
+            calibEnabled = prefs[KEY_CALIB_ENABLED] ?: false
         )
     }
 
@@ -149,6 +157,15 @@ class AppSettings @Inject constructor(
             prefs[KEY_ZONE_WIDTH]            = settings.zoneWidthDeg
             prefs[KEY_CM_OVERRIDE_ENABLED]   = settings.centralMeridianOverride != null
             prefs[KEY_CM_OVERRIDE]           = settings.centralMeridianOverride ?: 0.0
+        }
+    }
+
+    /** Lưu tham số hiệu chỉnh về mốc (tịnh tiến ΔN/ΔE) + bật/tắt. */
+    suspend fun saveCalibration(deltaN: Double, deltaE: Double, enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_CALIB_N]       = deltaN
+            prefs[KEY_CALIB_E]       = deltaE
+            prefs[KEY_CALIB_ENABLED] = enabled
         }
     }
 
@@ -190,6 +207,10 @@ class AppSettings @Inject constructor(
      */
     data class CoordSettings(
         val zoneWidthDeg            : Int    = 3,
-        val centralMeridianOverride  : Double? = null
+        val centralMeridianOverride  : Double? = null,
+        /** Hiệu chỉnh tịnh tiến về mốc chuẩn (mét) */
+        val calibN       : Double  = 0.0,
+        val calibE       : Double  = 0.0,
+        val calibEnabled : Boolean = false
     )
 }

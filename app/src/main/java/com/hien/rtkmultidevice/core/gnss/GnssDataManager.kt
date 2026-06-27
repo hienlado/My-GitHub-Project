@@ -52,7 +52,11 @@ class GnssDataManager @Inject constructor(
     private val appSettings        : AppSettings,
     @ApplicationContext private val context: Context   // để NtripClient dùng cellular socket
 ) {
-    companion object { private const val TAG = "GnssDataManager" }
+    companion object {
+        private const val TAG = "GnssDataManager"
+        /** Quá thời gian này (ms) không nhận được câu NMEA nào → coi như mất tín hiệu. */
+        private const val NMEA_TIMEOUT_MS = 4000L
+    }
     // ── Scope riêng cho GnssDataManager ─────────────────────
     // SupervisorJob: nếu một job con fail, không ảnh hưởng job khác
     private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -96,6 +100,9 @@ class GnssDataManager @Inject constructor(
     private var ntripJob: Job? = null
     private var ntripProxyJob: Job? = null
     private var ggaSenderJob: Job? = null
+    private var watchdogJob: Job? = null
+    /** Thời điểm nhận câu NMEA gần nhất — cho watchdog phát hiện mất tín hiệu. */
+    @Volatile private var lastNmeaTimeMs: Long = 0L
     private var ntripClient: NtripClient? = null
     private var ntripProxyServer: NtripProxyServer? = null
     private var rtcmBytesForwarded: Long = 0L
@@ -123,8 +130,33 @@ class GnssDataManager @Inject constructor(
 
             val connection = connectionManager.getActiveConnection() ?: return@launch
 
+            // Watchdog: nếu quá NMEA_TIMEOUT_MS không nhận được câu NMEA nào
+            // (đầu thu tắt nguồn / mất kết nối) → tự đặt NO FIX, tránh "đóng băng"
+            // trạng thái Fixed cũ làm user tưởng vẫn còn RTK.
+            lastNmeaTimeMs = System.currentTimeMillis()
+            startNmeaWatchdog()
+
             connection.nmeaFlow().collect { sentence ->
+                lastNmeaTimeMs = System.currentTimeMillis()
                 processNmeaSentence(sentence)
+            }
+        }
+    }
+
+    /** Giám sát luồng NMEA — mất tín hiệu quá lâu thì hạ về NO FIX. */
+    private fun startNmeaWatchdog() {
+        watchdogJob?.cancel()
+        watchdogJob = managerScope.launch {
+            while (true) {
+                delay(1000L)
+                val silentMs = System.currentTimeMillis() - lastNmeaTimeMs
+                if (silentMs > NMEA_TIMEOUT_MS && _gnssStatus.value.fixQuality != 0) {
+                    Log.w(TAG, "⚠ Mất tín hiệu NMEA ${silentMs}ms → đặt NO FIX (đầu thu tắt/ngắt?)")
+                    _gnssStatus.value = _gnssStatus.value.copy(
+                        fixQuality     = 0,
+                        satelliteCount = 0
+                    )
+                }
             }
         }
     }
@@ -195,11 +227,19 @@ class GnssDataManager @Inject constructor(
                                 h                      = gga.altitude,
                                 centralMeridianOverride = settings.centralMeridianOverride
                             )
+                        // Hiệu chỉnh về mốc chuẩn (tịnh tiến ΔN/ΔE) nếu được bật
+                        val adjusted = if (result != null && settings.calibEnabled)
+                            result.copy(
+                                northing = result.northing + settings.calibN,
+                                easting  = result.easting  + settings.calibE
+                            )
+                        else result
                         // LOG để debug Stakeout distance
                         Log.d(TAG, "VN2000: lat=${gga.latitude} lon=${gga.longitude} " +
                               "zone=${settings.zoneWidthDeg}° CM=${settings.centralMeridianOverride} " +
-                              "→ N=${result?.northing} E=${result?.easting}")
-                        result
+                              "calib=${settings.calibEnabled}(ΔN=${settings.calibN},ΔE=${settings.calibE}) " +
+                              "→ N=${adjusted?.northing} E=${adjusted?.easting}")
+                        adjusted
                     } else null
 
                     // Giữ nguyên speed/course/date/satellites từ state cũ
@@ -517,6 +557,7 @@ class GnssDataManager @Inject constructor(
      */
     fun stopAll() {
         nmeaJob?.cancel()
+        watchdogJob?.cancel()
         stopNtrip()
         stopNtripProxy()
         // Reset data

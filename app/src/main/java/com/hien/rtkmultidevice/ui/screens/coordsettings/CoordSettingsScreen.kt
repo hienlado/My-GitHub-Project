@@ -35,6 +35,10 @@ fun CoordSettingsScreen(
     val zoneWidth       by viewModel.zoneWidth.collectAsStateWithLifecycle()
     val overrideEnabled by viewModel.overrideEnabled.collectAsStateWithLifecycle()
     val selectedZone    by viewModel.selectedZone.collectAsStateWithLifecycle()
+    val calibN          by viewModel.calibN.collectAsStateWithLifecycle()
+    val calibE          by viewModel.calibE.collectAsStateWithLifecycle()
+    val calibEnabled    by viewModel.calibEnabled.collectAsStateWithLifecycle()
+    val calibFeedback   by viewModel.calibFeedback.collectAsStateWithLifecycle()
 
     val zones = if (zoneWidth == 3) viewModel.zones3Deg else viewModel.zones6Deg
 
@@ -162,6 +166,18 @@ fun CoordSettingsScreen(
                 selectedZone    = selectedZone
             )
 
+            // ── 5. Hiệu chỉnh về mốc chuẩn ───────────────────
+            CalibrationCard(
+                calibN       = calibN,
+                calibE       = calibE,
+                calibEnabled = calibEnabled,
+                feedback     = calibFeedback,
+                onCompute    = { n, e -> viewModel.computeCalibrationFromKnownMark(n, e) },
+                onToggle     = { viewModel.setCalibEnabled(it) },
+                onClear      = { viewModel.clearCalibration() },
+                onClearFeedback = { viewModel.clearCalibFeedback() }
+            )
+
             // ── Nút Lưu ──────────────────────────────────────
             Button(
                 onClick  = { viewModel.saveSettings(onNavigateBack) },
@@ -262,6 +278,95 @@ private fun PreviewCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                 )
+            }
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════
+// CalibrationCard — Hiệu chỉnh tịnh tiến về mốc chuẩn (localization)
+// ════════════════════════════════════════════════════════════
+
+@Composable
+private fun CalibrationCard(
+    calibN          : Double,
+    calibE          : Double,
+    calibEnabled    : Boolean,
+    feedback        : String?,
+    onCompute       : (Double, Double) -> Unit,
+    onToggle        : (Boolean) -> Unit,
+    onClear         : () -> Unit,
+    onClearFeedback : () -> Unit
+) {
+    var trueN by remember { mutableStateOf("") }
+    var trueE by remember { mutableStateOf("") }
+    fun parse(v: String): Double? = v.replace(" ", "").replace(",", "").toDoubleOrNull()
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Hiệu chỉnh về mốc chuẩn", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Đặt máy tại mốc đã biết toạ độ (trạng thái Fixed), nhập toạ độ chuẩn " +
+                "rồi bấm \"Tính\". App sẽ tịnh tiến mọi điểm đo về hệ địa phương.",
+                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(10.dp))
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Đang áp dụng", fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        if (calibN == 0.0 && calibE == 0.0) "Chưa hiệu chỉnh"
+                        else "ΔN=%.3f m   ΔE=%.3f m".format(calibN, calibE),
+                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Switch(checked = calibEnabled, onCheckedChange = onToggle)
+            }
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = trueN, onValueChange = { trueN = it },
+                label = { Text("X chuẩn — Northing (m)") },
+                singleLine = true, modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(6.dp))
+            OutlinedTextField(
+                value = trueE, onValueChange = { trueE = it },
+                label = { Text("Y chuẩn — Easting (m)") },
+                singleLine = true, modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        val n = parse(trueN); val e = parse(trueE)
+                        if (n != null && e != null) onCompute(n, e)
+                    },
+                    enabled = parse(trueN) != null && parse(trueE) != null,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Tính & áp dụng") }
+                OutlinedButton(onClick = onClear) { Text("Xoá") }
+            }
+
+            feedback?.let { msg ->
+                Spacer(Modifier.height(8.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(msg, fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+                }
+                LaunchedEffect(msg) { kotlinx.coroutines.delay(4000); onClearFeedback() }
             }
         }
     }
