@@ -90,6 +90,24 @@ fun MapScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val importScope = rememberCoroutineScope()
+
+    // ── Điều hướng tới thửa mong muốn (nhập "tờ/thửa" ở nút Cloud) ──
+    val targetThua by viewModel.targetThua.collectAsStateWithLifecycle()
+    var focusPoint by remember { mutableStateOf<GeoPoint?>(null) }
+    LaunchedEffect(importedLayer, targetThua) {
+        val layer = importedLayer
+        val t = targetThua?.filter { it.isDigit() }
+        if (layer != null && !t.isNullOrBlank()) {
+            val feat = layer.features.firstOrNull { f -> f.label.filter { c -> c.isDigit() } == t }
+            if (feat != null) {
+                selectedVecFeature = feat
+                focusPoint = feat.centroid
+            } else {
+                snackbarHostState.showSnackbar("Không thấy thửa $t trong tờ này")
+            }
+            viewModel.clearTargetThua()
+        }
+    }
     val ctx = androidx.compose.ui.platform.LocalContext.current
 
     // File picker
@@ -250,6 +268,7 @@ fun MapScreen(
                 vectorLayer         = importedLayer,
                 // Highlight đối tượng đang chọn (sheet đang mở) — cyan nét đậm
                 highlightFeatureId  = selectedVecFeature?.id,
+                focusPoint          = focusPoint,
                 onScrolled          = viewModel::onMapScrolled,
                 onMarkerTap         = { viewModel.selectPoint(it) },
                 onVectorFeatureTap  = { feature, vidx ->
@@ -379,12 +398,22 @@ private fun OsmMapView(
     vectorLayer        : VectorLayerImporter.VectorLayer? = null,
     /** Id feature cần highlight (đang được chọn) — vẽ cyan nét đậm */
     highlightFeatureId : Int? = null,
+    /** Điểm cần căn giữa bản đồ (đi tới thửa) */
+    focusPoint         : GeoPoint? = null,
     onScrolled         : () -> Unit,
     onMarkerTap        : (SurveyPoint) -> Unit,
     onVectorFeatureTap : (VectorLayerImporter.VectorFeature, Int) -> Unit = { _, _ -> }
 ) {
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+
+    // Căn giữa + phóng to tới thửa được yêu cầu (đi tới thửa 90...)
+    LaunchedEffect(focusPoint) {
+        focusPoint?.let {
+            mapViewRef.value?.controller?.animateTo(it)
+            mapViewRef.value?.controller?.setZoom(19.0)
+        }
+    }
 
     Box(modifier) {
         AndroidView(
