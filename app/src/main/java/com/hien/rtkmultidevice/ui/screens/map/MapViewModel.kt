@@ -44,6 +44,34 @@ class MapViewModel @Inject constructor(
     fun setVectorLayer(layer: VectorLayerImporter.VectorLayer) = vectorLayerHolder.set(layer)
     fun clearVectorLayer() = vectorLayerHolder.clear()
 
+    // ── Tải bản đồ địa chính theo TỜ từ Cloud (GCS) ──────────────────────
+    private val _cloudLoading = MutableStateFlow(false)
+    val cloudLoading: StateFlow<Boolean> = _cloudLoading.asStateFlow()
+
+    private val _cloudMessage = MutableStateFlow<String?>(null)
+    val cloudMessage: StateFlow<String?> = _cloudMessage.asStateFlow()
+
+    fun clearCloudMessage() { _cloudMessage.value = null }
+
+    /**
+     * Tải 1 tờ bản đồ địa chính (VN-2000) từ GCS -> overlay vector (đo/cắm mốc).
+     * @param communeSlug ví dụ "nghiathanh"; @param sheet ví dụ "DC12_TL2000".
+     */
+    fun loadCadastralSheet(communeSlug: String, sheet: String, hintCm: Double = 107.75) {
+        viewModelScope.launch {
+            _cloudLoading.value = true
+            when (val r = CadastralCloudSource.loadSheet(communeSlug, sheet, hintCm)) {
+                is VectorLayerImporter.ImportResult.Success -> {
+                    setVectorLayer(r.layer)
+                    _cloudMessage.value = "Đã tải ${r.fileName}"
+                }
+                is VectorLayerImporter.ImportResult.Error ->
+                    _cloudMessage.value = r.message
+            }
+            _cloudLoading.value = false
+        }
+    }
+
     /**
      * Đặt điểm thiết kế vào holder TRƯỚC khi navigate sang StakeoutScreen.
      * StakeoutViewModel sẽ đọc qua holder.consume() — không truyền qua route string.

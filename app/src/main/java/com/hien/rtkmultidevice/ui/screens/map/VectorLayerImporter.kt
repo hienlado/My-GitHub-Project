@@ -187,9 +187,10 @@ object VectorLayerImporter {
             val layer = when (ext) {
                 "dxf"        -> parseDxf(stream, fileName, hintCentralMeridian)
                 "shp"        -> parseShp(stream, fileName, hintCentralMeridian)
-                "csv", "txt" -> parseCsvPoints(stream, fileName, hintCentralMeridian)
+                "csv", "txt"       -> parseCsvPoints(stream, fileName, hintCentralMeridian)
+                "geojson", "json"  -> parseGeoJson(stream, fileName, hintCentralMeridian)
                 else         -> return@withContext ImportResult.Error(
-                    "Định dạng .$ext chưa được hỗ trợ.\nHỗ trợ: .dxf, .shp, .csv, .txt"
+                    "Định dạng .$ext chưa được hỗ trợ.\nHỗ trợ: .dxf, .shp, .csv, .txt, .geojson"
                 )
             }
             if (layer.isEmpty) ImportResult.Error("File không chứa dữ liệu hình học hợp lệ")
@@ -452,6 +453,100 @@ object VectorLayerImporter {
         }
         if (detectedCs == CoordSystem.UNKNOWN_PROJECTED && features.isNotEmpty()) detectedCs = features.first().coordSystem
         return VectorLayer(name=name, features=features, coordSystem=detectedCs, detectedCm=detectedCm)
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // GeoJSON parser
+    // ══════════════════════════════════════════════════════════
+
+    private fun parseGeoJson(
+        stream: java.io.InputStream, name: String, hintCentralMeridian: Double
+    ): VectorLayer =
+        parseGeoJsonText(stream.bufferedReader().use { it.readText() }, name, hintCentralMeridian)
+
+    /**
+     * Đọc chuỗi GeoJSON (FeatureCollection / Feature / Geometry) → VectorLayer.
+     * Toạ độ [x, y] = [lon/easting, lat/northing]; resolve() tự nhận diện
+     * WGS-84 hay VN-2000 theo độ lớn. Dùng cho cả file cục bộ lẫn tải từ server.
+     */
+    internal fun parseGeoJsonText(
+        text: String, name: String, hintCentralMeridian: Double = 0.0
+    ): VectorLayer {
+        val root = org.json.JSONObject(text)
+        val features = mutableListOf<VectorFeature>()
+        var idSeq = 0
+        var layerCs = CoordSystem.UNKNOWN_PROJECTED
+        var layerCm = 0.0
+
+        fun coordsToPts(arr: org.json.JSONArray): Pair<List<GeoPoint>, List<Pair<Double, Double>>> {
+            val geo = mutableListOf<GeoPoint>(); val raw = mutableListOf<Pair<Double, Double>>()
+            for (i in 0 until arr.length()) {
+                val c = arr.getJSONArray(i)
+                val x = c.getDouble(0); val y = c.getDouble(1)
+                val (cs, cm, gp) = resolve(x, y, hintCentralMeridian)
+                if (gp != null) {
+                    geo += gp; raw += Pair(x, y)
+                    if (layerCs == CoordSystem.UNKNOWN_PROJECTED) { layerCs = cs; layerCm = cm }
+                }
+            }
+            return geo to raw
+        }
+
+        fun addGeometry(geom: org.json.JSONObject, label: String) {
+            val coords = geom.optJSONArray("coordinates") ?: return
+            when (geom.optString("type")) {
+                "Point" -> {
+                    val x = coords.getDouble(0); val y = coords.getDouble(1)
+                    val (cs, cm, gp) = resolve(x, y, hintCentralMeridian)
+                    if (gp != null) {
+                        if (layerCs == CoordSystem.UNKNOWN_PROJECTED) { layerCs = cs; layerCm = cm }
+                        features += VectorFeature(idSeq++, FeatureType.POINT, listOf(gp), listOf(Pair(x, y)), cs, cm, "", label)
+                    }
+                }
+                "LineString" -> {
+                    val (g, r) = coordsToPts(coords)
+                    if (g.size >= 2) features += VectorFeature(idSeq++, FeatureType.POLYLINE, g, r, layerCs, layerCm, "", label)
+                }
+                "Polygon" -> if (coords.length() > 0) {
+                    val (g, r) = coordsToPts(coords.getJSONArray(0))   // vòng ngoài
+                    if (g.size >= 3) features += VectorFeature(idSeq++, FeatureType.POLYGON, g, r, layerCs, layerCm, "", label)
+                }
+                "MultiLineString" -> for (i in 0 until coords.length()) {
+                    val (g, r) = coordsToPts(coords.getJSONArray(i))
+                    if (g.size >= 2) features += VectorFeature(idSeq++, FeatureType.POLYLINE, g, r, layerCs, layerCm, "", label)
+                }
+                "MultiPolygon" -> for (i in 0 until coords.length()) {
+                    val poly = coords.getJSONArray(i)
+                    if (poly.length() > 0) {
+                        val (g, r) = coordsToPts(poly.getJSONArray(0))
+                        if (g.size >= 3) features += VectorFeature(idSeq++, FeatureType.POLYGON, g, r, layerCs, layerCm, "", label)
+                    }
+                }
+            }
+        }
+
+        fun labelOf(props: org.json.JSONObject?): String {
+            if (props == null) return ""
+            for (k in listOf("SHThua", "soThua", "SoThua", "MaThua", "maThua", "ThuaDat", "thua", "id", "name", "Name", "label")) {
+                if (props.has(k)) return props.opt(k)?.toString() ?: ""
+            }
+            return ""
+        }
+
+        when (root.optString("type")) {
+            "FeatureCollection" -> {
+                val fc = root.optJSONArray("features") ?: org.json.JSONArray()
+                for (i in 0 until fc.length()) {
+                    val f = fc.getJSONObject(i)
+                    val geom = f.optJSONObject("geometry") ?: continue
+                    val label = labelOf(f.optJSONObject("properties")).ifEmpty { "T${i + 1}" }
+                    addGeometry(geom, label)
+                }
+            }
+            "Feature" -> root.optJSONObject("geometry")?.let { addGeometry(it, labelOf(root.optJSONObject("properties"))) }
+            else -> if (root.has("coordinates")) addGeometry(root, "")
+        }
+        return VectorLayer(name, features, layerCs, layerCm)
     }
 
     // ══════════════════════════════════════════════════════════

@@ -225,6 +225,8 @@ fun MapScreen(
                         if (isImporting) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
                         else Icon(Icons.Default.FileOpen, "Import DXF/SHP", Modifier.size(19.dp), tint = Color.White)
                     }
+                    // ── Tải bản đồ địa chính từ Cloud ───────────────
+                    CadastralCloudButton(viewModel, modifier = Modifier.size(38.dp))
                     // ── Follow GPS ──────────────────────────────────
                     com.hien.rtkmultidevice.ui.components.CompactActionIcon(
                         icon = if (followGps) Icons.Default.GpsFixed else Icons.Default.GpsNotFixed,
