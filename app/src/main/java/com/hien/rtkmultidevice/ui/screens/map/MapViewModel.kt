@@ -53,17 +53,31 @@ class MapViewModel @Inject constructor(
 
     fun clearCloudMessage() { _cloudMessage.value = null }
 
+    // Thửa cần điều hướng tới sau khi tải tờ (để highlight/định vị). null = không.
+    private val _targetThua = MutableStateFlow<String?>(null)
+    val targetThua: StateFlow<String?> = _targetThua.asStateFlow()
+    fun clearTargetThua() { _targetThua.value = null }
+
     /**
-     * Tải 1 tờ bản đồ địa chính (VN-2000) từ GCS -> overlay vector (đo/cắm mốc).
-     * @param communeSlug ví dụ "nghiathanh"; @param sheet ví dụ "DC12_TL2000".
+     * Tải 1 tờ bản đồ địa chính (VN-2000) rồi (nếu có) điều hướng tới thửa.
+     * @param communeSlug ví dụ "nghiathanh".
+     * @param rawInput chuỗi "tờ/thửa": 122/90, 122.90, 122-90, hoặc chỉ 122.
      */
-    fun loadCadastralSheet(communeSlug: String, sheet: String, hintCm: Double = 107.75) {
+    fun loadCadastralSheet(communeSlug: String, rawInput: String) {
+        val sp = CadastralCloudSource.parse(rawInput)
+        if (sp == null) {
+            _cloudMessage.value = "Nhập chưa đúng — ví dụ 122/90 (tờ 122, thửa 90)"
+            return
+        }
         viewModelScope.launch {
             _cloudLoading.value = true
-            when (val r = CadastralCloudSource.loadSheet(communeSlug, sheet, hintCm)) {
+            when (val r = CadastralCloudSource.loadSheet(communeSlug, sp.to)) {
                 is VectorLayerImporter.ImportResult.Success -> {
                     setVectorLayer(r.layer)
-                    _cloudMessage.value = "Đã tải ${r.fileName}"
+                    _targetThua.value = sp.thua
+                    _cloudMessage.value =
+                        if (sp.thua != null) "Đã tải tờ ${sp.to} → thửa ${sp.thua}"
+                        else "Đã tải tờ ${sp.to}"
                 }
                 is VectorLayerImporter.ImportResult.Error ->
                     _cloudMessage.value = r.message

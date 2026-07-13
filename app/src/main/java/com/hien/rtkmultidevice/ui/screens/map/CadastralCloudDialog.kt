@@ -93,8 +93,9 @@ fun CadastralCloudDialog(
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = sheet,
-                    onValueChange = { sheet = it.trim() },
-                    label = { Text("Tờ (vd: DC12_TL2000)") },
+                    onValueChange = { sheet = it },
+                    label = { Text("Tờ / Thửa (vd: 122/90)") },
+                    placeholder = { Text("122/90  •  122.90  •  122-90  •  122") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )

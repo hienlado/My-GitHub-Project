@@ -1,24 +1,23 @@
 package com.hien.rtkmultidevice.ui.screens.map
 
 /**
- * CadastralCloudSource — nguồn bản đồ địa chính từ GCS (theo TỜ) cho app RTK.
+ * CadastralCloudSource — nguồn bản đồ địa chính (theo TỜ) cho app RTK.
  *
- * Pipeline đẩy GeoJSON VN-2000 theo tờ lên:
- *   https://storage.googleapis.com/<bucket>/sheets/<xã>/<tờ>.geojson
- *   (ví dụ: .../sheets/nghiathanh/DC12_TL2000.geojson)
+ * Bucket bật "public access prevention" nên KHÔNG public được -> gọi qua Cloud Function
+ * getCadastral (gated bằng X-API-Key). Function trả GeoJSON VN-2000 của 1 tờ.
  *
- * Toạ độ trong file là VN-2000 (E,N) -> app tự chuyển sang lat/lon bằng bộ tham số của app
- * (VectorLayerImporter.parseGeoJsonText với hintCm), giữ VN-2000 để CẮM MỐC chính xác.
- *
- * Không cần sửa CloudMapLoader: truyền baseUrl là URL đầy đủ và layer="" -> fetch thẳng.
+ * Cấu hình sau khi deploy function: đổi FUNCTION_URL và API_KEY.
  */
 object CadastralCloudSource {
 
-    /** Bucket công khai chứa GeoJSON theo tờ (khớp SheetGeoJsonPrefix của pipeline). */
-    const val BUCKET = "rtk-shp-input-v1"
-    const val BASE   = "https://storage.googleapis.com/$BUCKET/sheets"
+    // >>> ĐỔI sau khi deploy Cloud Function getCadastral <<<
+    const val FUNCTION_URL = "https://asia-east1-fluid-axe-328823.cloudfunctions.net/getCadastral"
+    const val API_KEY = "DOI_THANH_CHUOI_BI_MAT_CUA_BAN"
 
-    /** Danh sách xã (khớp tên thư mục pipeline). */
+    /** Kinh tuyến trục VN-2000 khu vực (BR-VT: 107°45'). */
+    const val CENTRAL_MERIDIAN = 107.75
+
+    /** Danh sách xã (slug khớp thư mục pipeline -> tên hiển thị). */
     val COMMUNES = listOf(
         "binhgia" to "Xã Bình Giã",
         "chauduc" to "Xã Châu Đức",
@@ -28,23 +27,28 @@ object CadastralCloudSource {
         "xuanson" to "Xã Xuân Sơn",
     )
 
-    /** URL 1 tờ. sheet ví dụ "DC12_TL2000" (số tờ + tỉ lệ). */
-    fun sheetUrl(communeSlug: String, sheet: String): String =
-        "$BASE/$communeSlug/$sheet.geojson"
+    /** Tờ + thửa sau khi tách chuỗi nhập. */
+    data class SheetParcel(val to: String, val thua: String?)
 
     /**
-     * Tải 1 tờ từ cloud -> VectorLayer (hình học đầy đủ VN-2000, sẵn sàng cắm mốc).
-     * @param hintCm kinh tuyến trục VN-2000 của khu vực (BR-VT: 107.75 = 107°45').
+     * Tách chuỗi nhập "122/90", "122.90", "122-90", "122 90" hoặc chỉ "122".
+     * Trả null nếu không có số tờ.
      */
-    suspend fun loadSheet(
-        communeSlug: String,
-        sheet: String,
-        hintCm: Double = 107.75
-    ): VectorLayerImporter.ImportResult =
+    fun parse(raw: String): SheetParcel? {
+        val parts = raw.trim().split('/', '.', '-', ' ', ',').filter { it.isNotBlank() }
+        if (parts.isEmpty()) return null
+        val to = parts[0].filter { it.isDigit() }
+        if (to.isBlank()) return null
+        val thua = parts.getOrNull(1)?.filter { it.isDigit() }?.ifBlank { null }
+        return SheetParcel(to, thua)
+    }
+
+    /** Tải 1 tờ từ Cloud Function -> VectorLayer (VN-2000, sẵn sàng cắm mốc). */
+    suspend fun loadSheet(communeSlug: String, to: String): VectorLayerImporter.ImportResult =
         CloudMapLoader.fetchGeoJson(
-            baseUrl = sheetUrl(communeSlug, sheet),
-            apiKey  = "",
-            layer   = "",            // để trống -> fetch trực tiếp URL GCS
-            hintCm  = hintCm
+            baseUrl = FUNCTION_URL,
+            apiKey  = API_KEY,
+            layer   = "$communeSlug/$to",   // function đọc ?layer=<xã>/<tờ>
+            hintCm  = CENTRAL_MERIDIAN
         )
 }
