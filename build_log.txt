@@ -1,4 +1,3 @@
-Starting a Gradle Daemon, 1 busy Daemon could not be reused, use --status for details
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
@@ -33,16 +32,13 @@ Starting a Gradle Daemon, 1 busy Daemon could not be reused, use --status for de
 > Task :app:writeDebugAppMetadata UP-TO-DATE
 > Task :app:writeDebugSigningConfigVersions UP-TO-DATE
 > Task :app:kspDebugKotlin
-
 > Task :app:compileDebugKotlin
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/CadastralCloudDialog.kt:79:45 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
-
-> Task :app:compileDebugJavaWithJavac
+> Task :app:compileDebugJavaWithJavac UP-TO-DATE
 > Task :app:processDebugJavaRes UP-TO-DATE
 > Task :app:mergeDebugJavaResource UP-TO-DATE
 > Task :app:hiltSyncDebug
 > Task :app:hiltAggregateDepsDebug UP-TO-DATE
-> Task :app:hiltJavaCompileDebug
+> Task :app:hiltJavaCompileDebug UP-TO-DATE
 > Task :app:transformDebugClassesWithAsm
 > Task :app:dexBuilderDebug
 > Task :app:mergeProjectDexDebug
@@ -50,6 +46,6 @@ w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/r
 > Task :app:createDebugApkListingFileRedirect UP-TO-DATE
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 1m 14s
-41 actionable tasks: 8 executed, 33 up-to-date
+BUILD SUCCESSFUL in 7s
+41 actionable tasks: 6 executed, 35 up-to-date
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html

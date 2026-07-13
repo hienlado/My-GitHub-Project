@@ -10,9 +10,9 @@ package com.hien.rtkmultidevice.ui.screens.map
  */
 object CadastralCloudSource {
 
-    // >>> ĐỔI sau khi deploy Cloud Function getCadastral <<<
+    // Cloud Function getCadastral (đã deploy).
     const val FUNCTION_URL = "https://asia-east1-fluid-axe-328823.cloudfunctions.net/getCadastral"
-    const val API_KEY = "DOI_THANH_CHUOI_BI_MAT_CUA_BAN"
+    const val API_KEY = "rtk-cadastral-2026-x7k9"
 
     /** Kinh tuyến trục VN-2000 khu vực (BR-VT: 107°45'). */
     const val CENTRAL_MERIDIAN = 107.75
