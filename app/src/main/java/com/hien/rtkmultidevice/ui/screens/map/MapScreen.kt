@@ -245,6 +245,8 @@ fun MapScreen(
                     }
                     // ── Tải bản đồ địa chính từ Cloud ───────────────
                     CadastralCloudButton(viewModel, modifier = Modifier.size(38.dp))
+                    // ── Tôi đang ở thửa nào ─────────────────────────
+                    WhereAmIButton(viewModel, gnss.latitude, gnss.longitude, modifier = Modifier.size(38.dp))
                     // ── Follow GPS ──────────────────────────────────
                     com.hien.rtkmultidevice.ui.components.CompactActionIcon(
                         icon = if (followGps) Icons.Default.GpsFixed else Icons.Default.GpsNotFixed,

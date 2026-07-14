@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.size
 import android.widget.Toast
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -48,6 +49,41 @@ fun CadastralCloudButton(
         onLoad = { c, s -> viewModel.loadCadastralSheet(c, s); show = false },
         onDismiss = { show = false }
     )
+}
+
+/**
+ * Nút "Tôi đang ở thửa nào?" — lấy vị trí RTK hiện tại (lat/lon) -> tra ngược xã/tờ/thửa.
+ * Đặt 1 dòng trong MapScreen: WhereAmIButton(viewModel, gnss.latitude, gnss.longitude)
+ */
+@Composable
+fun WhereAmIButton(
+    viewModel: MapViewModel,
+    lat: Double,
+    lon: Double,
+    modifier: Modifier = Modifier,
+) {
+    val loading by viewModel.cloudLoading.collectAsStateWithLifecycle()
+    val result by viewModel.whereResult.collectAsStateWithLifecycle()
+
+    IconButton(onClick = { viewModel.whereAmINow(lat, lon) }, modifier = modifier, enabled = !loading) {
+        Icon(Icons.Default.MyLocation, contentDescription = "Tôi đang ở thửa nào")
+    }
+
+    result?.let { r ->
+        AlertDialog(
+            onDismissRequest = { viewModel.clearWhereResult() },
+            title = { Text(if (r.found) "Vị trí hiện tại" else "Không xác định") },
+            text = {
+                if (r.found) Text(
+                    "${r.xaName}\n" +
+                    "Tờ ${r.to} — Thửa ${r.thua}\n" +
+                    "Diện tích: ${r.dienTich} m²\n" +
+                    "Chủ: ${r.tenChu}"
+                ) else Text(r.message)
+            },
+            confirmButton = { TextButton(onClick = { viewModel.clearWhereResult() }) { Text("Đóng") } }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

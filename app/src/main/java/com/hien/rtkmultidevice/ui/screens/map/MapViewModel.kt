@@ -58,6 +58,26 @@ class MapViewModel @Inject constructor(
     val targetThua: StateFlow<String?> = _targetThua.asStateFlow()
     fun clearTargetThua() { _targetThua.value = null }
 
+    // ── "Tôi đang ở thửa nào?" (tra ngược điểm RTK -> xã/tờ/thửa) ──
+    private val _whereResult = MutableStateFlow<CadastralCloudSource.WhereResult?>(null)
+    val whereResult: StateFlow<CadastralCloudSource.WhereResult?> = _whereResult.asStateFlow()
+    fun clearWhereResult() { _whereResult.value = null }
+
+    fun whereAmINow(lat: Double, lon: Double) {
+        if ((lat == 0.0 && lon == 0.0) || lat.isNaN() || lon.isNaN()) {
+            _cloudMessage.value = "Chưa có định vị RTK"
+            return
+        }
+        viewModelScope.launch {
+            _cloudLoading.value = true
+            val vn = com.hien.rtkmultidevice.core.coordinate.Vn2000Converter
+                .convert(lat, lon, 0.0, CadastralCloudSource.CENTRAL_MERIDIAN)
+            if (vn == null) _cloudMessage.value = "Không đổi được toạ độ VN-2000"
+            else _whereResult.value = CadastralCloudSource.whereAmI(vn.easting, vn.northing)
+            _cloudLoading.value = false
+        }
+    }
+
     /**
      * Tải 1 tờ bản đồ địa chính (VN-2000) rồi (nếu có) điều hướng tới thửa.
      * @param communeSlug ví dụ "nghiathanh".
