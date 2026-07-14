@@ -78,6 +78,15 @@ class MapViewModel @Inject constructor(
         }
     }
 
+    /** Tra theo toạ độ VN-2000 nhập tay (x=Easting, y=Northing). */
+    fun whereAmIVn2000(x: Double, y: Double) {
+        viewModelScope.launch {
+            _cloudLoading.value = true
+            _whereResult.value = CadastralCloudSource.whereAmI(x, y)
+            _cloudLoading.value = false
+        }
+    }
+
     /**
      * Tải 1 tờ bản đồ địa chính (VN-2000) rồi (nếu có) điều hướng tới thửa.
      * @param communeSlug ví dụ "nghiathanh".

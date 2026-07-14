@@ -247,6 +247,8 @@ fun MapScreen(
                     CadastralCloudButton(viewModel, modifier = Modifier.size(38.dp))
                     // ── Tôi đang ở thửa nào ─────────────────────────
                     WhereAmIButton(viewModel, gnss.latitude, gnss.longitude, modifier = Modifier.size(38.dp))
+                    // ── Tra thửa theo toạ độ nhập tay ───────────────
+                    CoordLookupButton(viewModel, modifier = Modifier.size(38.dp))
                     // ── Follow GPS ──────────────────────────────────
                     com.hien.rtkmultidevice.ui.components.CompactActionIcon(
                         icon = if (followGps) Icons.Default.GpsFixed else Icons.Default.GpsNotFixed,
@@ -650,6 +652,25 @@ private fun updateVectorOverlay(
             outlinePaint.color       = if (isHighlighted) highlightColor else strokeColor
             outlinePaint.strokeWidth = if (isHighlighted) 7f else 2.5f
             setOnClickListener { _, _, _ -> onFeatureTap(feature, 0); true }
+        })
+    }
+
+    // ── Nhãn hỗn số tại tâm thửa: loại đất / (số thửa ÷ diện tích) ──
+    val labelCtx = mapView.context
+    var labelBudget = 500
+    layer.features.forEach { feature ->
+        if (labelBudget <= 0) return@forEach
+        if (feature.type != VectorLayerImporter.FeatureType.POLYGON) return@forEach
+        if (feature.soThua.isBlank()) return@forEach
+        val c = feature.centroid ?: return@forEach
+        labelBudget--
+        mapView.overlays.add(Marker(mapView).apply {
+            title = "vec_lbl_${feature.id}"
+            position = c
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            icon = makeParcelLabelIcon(labelCtx, feature.loaiDat, feature.soThua, feature.dienTich)
+            infoWindow = null
+            setOnMarkerClickListener { _, _ -> onFeatureTap(feature, 0); true }
         })
     }
 
@@ -1200,6 +1221,55 @@ private fun createGpsDrawable(context: Context): android.graphics.drawable.Drawa
     p.color = AndroidColor.WHITE; p.strokeWidth = 2f; p.style = Paint.Style.STROKE
     val cx=size/2f; val cy=size/2f; val r=size/2f-8f
     c.drawLine(cx, cy-r, cx, cy+r, p); c.drawLine(cx-r, cy, cx+r, cy, p)
+    return android.graphics.drawable.BitmapDrawable(context.resources, bmp)
+}
+
+/**
+ * Nhãn hỗn số tại tâm thửa:
+ *     LoaiDat            (vd ONT+CLN, xanh lá)
+ *     SoThua             (đỏ)
+ *     ─────────          (vạch phân số)
+ *     DienTich           (xanh dương)
+ */
+private fun makeParcelLabelIcon(
+    context: Context, loaiDat: String, soThua: String, dienTich: String
+): android.graphics.drawable.Drawable {
+    val d     = context.resources.displayMetrics.density
+    val ts    = 11f * d
+    val pad   = 4f * d
+    val lineH = ts * 1.30f
+
+    fun mkPaint(color: Int, stroke: Boolean) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = ts; textAlign = Paint.Align.CENTER
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+        if (stroke) { style = Paint.Style.STROKE; strokeWidth = 3f; this.color = AndroidColor.WHITE }
+        else this.color = color
+    }
+
+    val rows = ArrayList<Pair<String, Int>>()
+    if (loaiDat.isNotBlank()) rows.add(loaiDat to AndroidColor.parseColor("#1B5E20"))
+    rows.add(soThua   to AndroidColor.parseColor("#B71C1C"))
+    rows.add(dienTich to AndroidColor.parseColor("#0D47A1"))
+
+    val measure = mkPaint(AndroidColor.BLACK, false)
+    val w = (rows.maxOf { measure.measureText(it.first) } + pad * 2).toInt().coerceAtLeast(1)
+    val h = (lineH * rows.size + pad * 2).toInt().coerceAtLeast(1)
+    val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+    val c = Canvas(bmp)
+    val cx = w / 2f
+    var y = pad + ts
+    val soThuaRow = if (loaiDat.isNotBlank()) 1 else 0
+
+    rows.forEachIndexed { i, (txt, col) ->
+        c.drawText(txt, cx, y, mkPaint(col, true))
+        c.drawText(txt, cx, y, mkPaint(col, false))
+        if (i == soThuaRow) {   // vạch phân số ngay dưới số thửa
+            val ly = y + ts * 0.30f
+            c.drawLine(pad, ly, w - pad, ly, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE; strokeWidth = 3.5f })
+            c.drawLine(pad, ly, w - pad, ly, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.BLACK; strokeWidth = 1.6f })
+        }
+        y += lineH
+    }
     return android.graphics.drawable.BitmapDrawable(context.resources, bmp)
 }
 

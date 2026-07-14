@@ -61,7 +61,10 @@ object VectorLayerImporter {
         /** Kinh tuyến trục đã dùng khi chiếu (0.0 nếu WGS84) */
         val centralMeridian : Double = 0.0,
         val dxfLayer        : String = "",
-        val label           : String = ""
+        val label           : String = "",
+        val soThua          : String = "",
+        val dienTich        : String = "",
+        val loaiDat         : String = ""
     ) {
         val centroid: GeoPoint? get() {
             if (geoPoints.isEmpty()) return null
@@ -492,7 +495,10 @@ object VectorLayerImporter {
             return geo to raw
         }
 
-        fun addGeometry(geom: org.json.JSONObject, label: String) {
+        fun addGeometry(
+            geom: org.json.JSONObject, label: String,
+            soThua: String = "", dienTich: String = "", loaiDat: String = ""
+        ) {
             val coords = geom.optJSONArray("coordinates") ?: return
             when (geom.optString("type")) {
                 "Point" -> {
@@ -500,38 +506,41 @@ object VectorLayerImporter {
                     val (cs, cm, gp) = resolve(x, y, hintCentralMeridian)
                     if (gp != null) {
                         if (layerCs == CoordSystem.UNKNOWN_PROJECTED) { layerCs = cs; layerCm = cm }
-                        features += VectorFeature(idSeq++, FeatureType.POINT, listOf(gp), listOf(Pair(x, y)), cs, cm, "", label)
+                        features += VectorFeature(idSeq++, FeatureType.POINT, listOf(gp), listOf(Pair(x, y)), cs, cm, "", label, soThua, dienTich, loaiDat)
                     }
                 }
                 "LineString" -> {
                     val (g, r) = coordsToPts(coords)
-                    if (g.size >= 2) features += VectorFeature(idSeq++, FeatureType.POLYLINE, g, r, layerCs, layerCm, "", label)
+                    if (g.size >= 2) features += VectorFeature(idSeq++, FeatureType.POLYLINE, g, r, layerCs, layerCm, "", label, soThua, dienTich, loaiDat)
                 }
                 "Polygon" -> if (coords.length() > 0) {
                     val (g, r) = coordsToPts(coords.getJSONArray(0))   // vòng ngoài
-                    if (g.size >= 3) features += VectorFeature(idSeq++, FeatureType.POLYGON, g, r, layerCs, layerCm, "", label)
+                    if (g.size >= 3) features += VectorFeature(idSeq++, FeatureType.POLYGON, g, r, layerCs, layerCm, "", label, soThua, dienTich, loaiDat)
                 }
                 "MultiLineString" -> for (i in 0 until coords.length()) {
                     val (g, r) = coordsToPts(coords.getJSONArray(i))
-                    if (g.size >= 2) features += VectorFeature(idSeq++, FeatureType.POLYLINE, g, r, layerCs, layerCm, "", label)
+                    if (g.size >= 2) features += VectorFeature(idSeq++, FeatureType.POLYLINE, g, r, layerCs, layerCm, "", label, soThua, dienTich, loaiDat)
                 }
                 "MultiPolygon" -> for (i in 0 until coords.length()) {
                     val poly = coords.getJSONArray(i)
                     if (poly.length() > 0) {
                         val (g, r) = coordsToPts(poly.getJSONArray(0))
-                        if (g.size >= 3) features += VectorFeature(idSeq++, FeatureType.POLYGON, g, r, layerCs, layerCm, "", label)
+                        if (g.size >= 3) features += VectorFeature(idSeq++, FeatureType.POLYGON, g, r, layerCs, layerCm, "", label, soThua, dienTich, loaiDat)
                     }
                 }
             }
         }
 
-        fun labelOf(props: org.json.JSONObject?): String {
+        fun propOf(props: org.json.JSONObject?, keys: List<String>): String {
             if (props == null) return ""
-            for (k in listOf("SHThua", "soThua", "SoThua", "MaThua", "maThua", "ThuaDat", "thua", "id", "name", "Name", "label")) {
-                if (props.has(k)) return props.opt(k)?.toString() ?: ""
-            }
+            for (k in keys) if (props.has(k)) return props.opt(k)?.toString() ?: ""
             return ""
         }
+
+        fun labelOf(props: org.json.JSONObject?): String = propOf(props, listOf(
+            "so_thua", "SHThua", "soThua", "SoThua", "TCT", "SoHieuThua",
+            "MaThua", "maThua", "ThuaDat", "thua", "id", "name", "Name", "label"
+        ))
 
         when (root.optString("type")) {
             "FeatureCollection" -> {
@@ -539,8 +548,12 @@ object VectorLayerImporter {
                 for (i in 0 until fc.length()) {
                     val f = fc.getJSONObject(i)
                     val geom = f.optJSONObject("geometry") ?: continue
-                    val label = labelOf(f.optJSONObject("properties")).ifEmpty { "T${i + 1}" }
-                    addGeometry(geom, label)
+                    val props = f.optJSONObject("properties")
+                    val label = labelOf(props).ifEmpty { "T${i + 1}" }
+                    val soThua   = propOf(props, listOf("so_thua", "SoThua", "TCT", "SoHieuThua")).ifEmpty { label }
+                    val dienTich = propOf(props, listOf("dien_tich_m2", "DienTich", "DTPhapLy", "DienTichThuc"))
+                    val loaiDat  = propOf(props, listOf("loai_dat", "LRD", "MaLD", "LoaiDat", "KyHieuDTSD"))
+                    addGeometry(geom, label, soThua, dienTich, loaiDat)
                 }
             }
             "Feature" -> root.optJSONObject("geometry")?.let { addGeometry(it, labelOf(root.optJSONObject("properties"))) }
