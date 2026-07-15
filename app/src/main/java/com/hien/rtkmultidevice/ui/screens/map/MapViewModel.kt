@@ -59,6 +59,20 @@ class MapViewModel @Inject constructor(
     val targetThua: StateFlow<String?> = _targetThua.asStateFlow()
     fun clearTargetThua() { _targetThua.value = null }
 
+    // ── Khung tờ tổng thể (overlay trên osmdroid) ──
+    private val _sheetFrames = MutableStateFlow<List<CadastralCloudSource.SheetBox>>(emptyList())
+    val sheetFrames: StateFlow<List<CadastralCloudSource.SheetBox>> = _sheetFrames.asStateFlow()
+
+    /** Tải chỉ mục khung tờ 1 lần (cache). */
+    fun loadSheetFramesIfNeeded() {
+        if (_sheetFrames.value.isNotEmpty()) return
+        viewModelScope.launch {
+            val list = CadastralCloudSource.loadIndex()
+            if (list.isEmpty()) _cloudMessage.value = "Chưa tải được chỉ mục tờ"
+            _sheetFrames.value = list
+        }
+    }
+
     // ── "Tôi đang ở thửa nào?" (tra ngược điểm RTK -> xã/tờ/thửa) ──
     private val _whereResult = MutableStateFlow<CadastralCloudSource.WhereResult?>(null)
     val whereResult: StateFlow<CadastralCloudSource.WhereResult?> = _whereResult.asStateFlow()

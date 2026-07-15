@@ -86,6 +86,12 @@ fun MapScreen(
     var selectedVecVertexIdx by remember { mutableIntStateOf(0) }
     // Bật/tắt hiển thị lớp thửa (không xoá layer — chỉ ẩn/hiện)
     var layerVisible by remember { mutableStateOf(true) }
+    // Unload tờ (gỡ layer) -> đóng menu thửa đang mở
+    LaunchedEffect(importedLayer) { if (importedLayer == null) selectedVecFeature = null }
+
+    // Overlay khung tờ tổng thể (bật/tắt)
+    val allFrames by viewModel.sheetFrames.collectAsStateWithLifecycle()
+    var showFrames by remember { mutableStateOf(false) }
 
     // ── Trạng thái dialog căn chỉnh toạ độ ─────────────────────
     var showAlignDialog     by remember { mutableStateOf(false) }
@@ -251,6 +257,21 @@ fun MapScreen(
                     WhereAmIButton(viewModel, gnss.latitude, gnss.longitude, modifier = Modifier.size(38.dp))
                     // ── Tra thửa theo toạ độ nhập tay ───────────────
                     CoordLookupButton(viewModel, modifier = Modifier.size(38.dp))
+                    // ── Bật/tắt khung tờ tổng thể ───────────────────
+                    IconButton(
+                        onClick = {
+                            showFrames = !showFrames
+                            if (showFrames) viewModel.loadSheetFramesIfNeeded()
+                        },
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Icon(
+                            if (showFrames) Icons.Default.GridOff else Icons.Default.GridOn,
+                            contentDescription = "Khung tờ tổng thể",
+                            tint = if (showFrames) Color(0xFF80FF80) else Color.White,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
                     // ── Follow GPS ──────────────────────────────────
                     com.hien.rtkmultidevice.ui.components.CompactActionIcon(
                         icon = if (followGps) Icons.Default.GpsFixed else Icons.Default.GpsNotFixed,
@@ -275,6 +296,8 @@ fun MapScreen(
                 // Highlight đối tượng đang chọn (sheet đang mở) — cyan nét đậm
                 highlightFeatureId  = selectedVecFeature?.id,
                 focusPoint          = focusPoint,
+                sheetFrames         = if (showFrames) allFrames else emptyList(),
+                onSheetTap          = { commune, to -> viewModel.loadCadastralSheet(commune, to) },
                 onScrolled          = viewModel::onMapScrolled,
                 onMarkerTap         = { viewModel.selectPoint(it) },
                 onVectorFeatureTap  = { feature, vidx ->
@@ -425,7 +448,10 @@ private fun OsmMapView(
     focusPoint         : GeoPoint? = null,
     onScrolled         : () -> Unit,
     onMarkerTap        : (SurveyPoint) -> Unit,
-    onVectorFeatureTap : (VectorLayerImporter.VectorFeature, Int) -> Unit = { _, _ -> }
+    onVectorFeatureTap : (VectorLayerImporter.VectorFeature, Int) -> Unit = { _, _ -> },
+    /** Khung tờ tổng thể (overlay) + chạm khung để tải tờ */
+    sheetFrames        : List<CadastralCloudSource.SheetBox> = emptyList(),
+    onSheetTap         : (commune: String, to: String) -> Unit = { _, _ -> }
 ) {
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
@@ -475,6 +501,7 @@ private fun OsmMapView(
                     mapView.invalidate()
                 }
                 updateMapOverlays(mapView, gnss, points, followGps, onScrolled, onMarkerTap)
+                updateSheetFrames(mapView, sheetFrames, onSheetTap)
                 updateVectorOverlay(mapView, vectorLayer, highlightFeatureId, onVectorFeatureTap)
             }
         )
@@ -618,6 +645,73 @@ private fun updateMapOverlays(
  *   POLYLINE → marker ở 2 đầu; nếu ≤ 10 đỉnh thì tất cả đỉnh
  *   POLYGON  → tất cả đỉnh (tối đa 50 đỉnh/feature)
  */
+/** Vẽ overlay KHUNG TỜ (bbox WGS84) + nhãn số tờ; chạm khung → tải tờ đó. */
+private fun updateSheetFrames(
+    mapView: MapView,
+    frames: List<CadastralCloudSource.SheetBox>,
+    onSheetTap: (String, String) -> Unit
+) {
+    // Dùng Polyline (VIỀN) thay vì Polygon để KHÔNG chặn thao tác chạm thửa bên trong.
+    val already = mapView.overlays.count { it is Polyline && it.title == "sheetframe" }
+    if (frames.isEmpty()) {
+        if (already > 0) {
+            mapView.overlays.removeAll { it is Polyline && it.title == "sheetframe" }
+            mapView.overlays.removeAll { it is Marker && it.title?.startsWith("sf_") == true }
+            mapView.invalidate()
+        }
+        return
+    }
+    if (already == frames.size) return   // đã vẽ rồi
+
+    mapView.overlays.removeAll { it is Polyline && it.title == "sheetframe" }
+    mapView.overlays.removeAll { it is Marker && it.title?.startsWith("sf_") == true }
+
+    frames.forEach { box ->
+        mapView.overlays.add(Polyline(mapView).apply {
+            title = "sheetframe"
+            infoWindow = null
+            setPoints(listOf(
+                GeoPoint(box.latMin, box.lonMin),
+                GeoPoint(box.latMin, box.lonMax),
+                GeoPoint(box.latMax, box.lonMax),
+                GeoPoint(box.latMax, box.lonMin),
+                GeoPoint(box.latMin, box.lonMin)   // khép viền
+            ))
+            outlinePaint.color       = AndroidColor.argb(190, 21, 101, 192)
+            outlinePaint.strokeWidth = 2f
+            setOnClickListener { _, _, _ -> onSheetTap(box.commune, box.to); true }
+        })
+        mapView.overlays.add(Marker(mapView).apply {
+            title = "sf_${box.commune}_${box.to}"
+            position = GeoPoint(box.centerLat, box.centerLon)
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            icon = makeSheetLabelIcon(mapView.context, box.to)
+            infoWindow = null
+            setOnMarkerClickListener { _, _ -> onSheetTap(box.commune, box.to); true }
+        })
+    }
+    mapView.invalidate()
+}
+
+/** Icon nhãn "Tờ N" (chip nhỏ) cho overlay khung tờ. */
+private fun makeSheetLabelIcon(context: Context, to: String): android.graphics.drawable.Drawable {
+    val d = context.resources.displayMetrics.density
+    val ts = 12f * d; val padX = 6f * d; val padY = 3f * d
+    val txt = "Tờ $to"
+    val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = ts; typeface = android.graphics.Typeface.DEFAULT_BOLD
+        textAlign = Paint.Align.CENTER; color = AndroidColor.WHITE
+    }
+    val w = (tp.measureText(txt) + padX * 2).toInt().coerceAtLeast(1)
+    val h = (ts + padY * 2).toInt().coerceAtLeast(1)
+    val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+    val c = Canvas(bmp)
+    c.drawRoundRect(0f, 0f, w.toFloat(), h.toFloat(), 6f * d, 6f * d,
+        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.argb(205, 21, 101, 192) })
+    c.drawText(txt, w / 2f, padY + ts * 0.85f, tp)
+    return android.graphics.drawable.BitmapDrawable(context.resources, bmp)
+}
+
 private fun updateVectorOverlay(
     mapView           : MapView,
     layer             : VectorLayerImporter.VectorLayer?,
@@ -752,7 +846,10 @@ private fun VectorFeatureSheet(
     // sheetState + scope để gọi hide() trước khi navigate
     // Không gọi trực tiếp selectedVecFeature=null + navigate trong onClick
     // vì ModalBottomSheet đang ở trạng thái Expanded → remove khỏi tree → crash
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = false,
+        confirmValueChange = { it != SheetValue.Hidden }   // chặn vuốt-ẩn: chỉ đóng bằng nút X hoặc unload tờ
+    )
     val scope      = rememberCoroutineScope()
     var showVertexTable by remember { mutableStateOf(false) }
 
@@ -786,7 +883,7 @@ private fun VectorFeatureSheet(
         onDismissRequest = onDismiss,
         sheetState       = sheetState,
         scrimColor       = Color.Transparent,   // map vẫn thấy & chạm được sau menu (chạm thửa khác/mở lại)
-        containerColor   = MaterialTheme.colorScheme.surface.copy(alpha = 0.93f)  // hơi trong suốt
+        containerColor   = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)  // trong suốt hơn
     ) {
         Column(
             modifier            = Modifier
@@ -796,7 +893,7 @@ private fun VectorFeatureSheet(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // ── Tiêu đề ──────────────────────────────────────────
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Surface(
                     color = Color(0xFFFF6D00).copy(alpha = 0.15f),
                     shape = RoundedCornerShape(6.dp)
@@ -817,6 +914,10 @@ private fun VectorFeatureSheet(
                             fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onDismiss, modifier = Modifier.size(30.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Đóng")
                 }
             }
 

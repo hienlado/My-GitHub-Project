@@ -91,4 +91,41 @@ object CadastralCloudSource {
             conn?.disconnect()
         }
     }
+
+    /** Khung 1 tờ (bbox WGS84) để vẽ overlay tổng thể trên osmdroid. */
+    data class SheetBox(
+        val commune: String, val communeName: String, val to: String,
+        val lonMin: Double, val latMin: Double, val lonMax: Double, val latMax: Double
+    ) {
+        val centerLat get() = (latMin + latMax) / 2.0
+        val centerLon get() = (lonMin + lonMax) / 2.0
+    }
+
+    /** Tải chỉ mục tờ (khung + số tờ toàn khu vực) — gọi getCadastral?index=1. */
+    suspend fun loadIndex(): List<SheetBox> = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
+        try {
+            conn = (URL("$FUNCTION_URL?index=1").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"; connectTimeout = 15_000; readTimeout = 30_000
+                setRequestProperty("X-API-Key", API_KEY)
+            }
+            if (conn.responseCode != 200) return@withContext emptyList()
+            val arr = org.json.JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
+            val out = ArrayList<SheetBox>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                if (!o.has("lonmin")) continue
+                out.add(SheetBox(
+                    o.optString("commune"), o.optString("communeName"), o.optString("to"),
+                    o.optDouble("lonmin"), o.optDouble("latmin"),
+                    o.optDouble("lonmax"), o.optDouble("latmax")
+                ))
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        } finally {
+            conn?.disconnect()
+        }
+    }
 }
