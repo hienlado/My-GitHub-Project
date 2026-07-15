@@ -167,54 +167,129 @@ fun CadastralCloudDialog(
     onLoad: (communeSlug: String, sheet: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
+    // false = tìm theo xã MỚI (sau sáp nhập); true = tìm theo xã CŨ (trước sáp nhập)
+    var oldMode by remember { mutableStateOf(false) }
+
     var communeExpanded by remember { mutableStateOf(false) }
     var commune by remember { mutableStateOf(CadastralCloudSource.COMMUNES.first()) }
+
+    val oldCommunes = remember { CadastralConvert.oldCommunes(context) }
+    var oldExpanded by remember { mutableStateOf(false) }
+    var oldCommune by remember { mutableStateOf(oldCommunes.firstOrNull()) }
+
     var sheet by remember { mutableStateOf("") }
+
+    // Xem trước ánh xạ tờ cũ -> tờ mới (chế độ xã cũ)
+    val preview: String? = if (oldMode && oldCommune != null) {
+        val sp = CadastralCloudSource.parse(sheet)
+        if (sp == null) null
+        else CadastralConvert.resolve(context, oldCommune!!.slug, sp.to)?.let { r ->
+            "→ X. ${r.newName}, Tờ ${r.newTo}" + (sp.thua?.let { " — Thửa $it" } ?: "")
+        } ?: "→ Không có tờ ${sp.to} ở ${oldCommune!!.name}"
+    } else null
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Tải bản đồ địa chính (Cloud)") },
         text = {
             Column {
-                ExposedDropdownMenuBox(
-                    expanded = communeExpanded,
-                    onExpandedChange = { communeExpanded = !communeExpanded }
-                ) {
-                    OutlinedTextField(
-                        value = commune.second,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Xã") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(communeExpanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    FilterChip(selected = !oldMode, onClick = { oldMode = false }, label = { Text("Xã mới") })
+                    Spacer(Modifier.width(8.dp))
+                    FilterChip(selected = oldMode, onClick = { oldMode = true }, label = { Text("Xã cũ") })
+                }
+                Spacer(Modifier.height(8.dp))
+
+                if (!oldMode) {
+                    ExposedDropdownMenuBox(
                         expanded = communeExpanded,
-                        onDismissRequest = { communeExpanded = false }
+                        onExpandedChange = { communeExpanded = !communeExpanded }
                     ) {
-                        CadastralCloudSource.COMMUNES.forEach { c ->
-                            DropdownMenuItem(
-                                text = { Text(c.second) },
-                                onClick = { commune = c; communeExpanded = false }
-                            )
+                        OutlinedTextField(
+                            value = commune.second,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Xã") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(communeExpanded) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = communeExpanded,
+                            onDismissRequest = { communeExpanded = false }
+                        ) {
+                            CadastralCloudSource.COMMUNES.forEach { c ->
+                                DropdownMenuItem(
+                                    text = { Text(c.second) },
+                                    onClick = { commune = c; communeExpanded = false }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    ExposedDropdownMenuBox(
+                        expanded = oldExpanded,
+                        onExpandedChange = { oldExpanded = !oldExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = oldCommune?.let { "${it.name}  (→ ${it.newName})" } ?: "—",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Xã cũ (trước sáp nhập)") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(oldExpanded) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = oldExpanded,
+                            onDismissRequest = { oldExpanded = false }
+                        ) {
+                            oldCommunes.forEach { c ->
+                                DropdownMenuItem(
+                                    text = { Text("${c.name}  →  ${c.newName}") },
+                                    onClick = { oldCommune = c; oldExpanded = false }
+                                )
+                            }
                         }
                     }
                 }
+
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = sheet,
                     onValueChange = { sheet = it },
-                    label = { Text("Tờ / Thửa (vd: 122/90)") },
+                    label = { Text(if (oldMode) "Tờ cũ / Thửa (vd: 5/103)" else "Tờ / Thửa (vd: 122/90)") },
                     placeholder = { Text("122/90  •  122.90  •  122-90  •  122") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                preview?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
             }
         },
         confirmButton = {
             TextButton(
-                enabled = !loading && sheet.isNotBlank(),
-                onClick = { onLoad(commune.first, sheet) }
+                enabled = !loading && sheet.isNotBlank() && (!oldMode || oldCommune != null),
+                onClick = {
+                    if (!oldMode) {
+                        onLoad(commune.first, sheet)
+                    } else {
+                        val sp = CadastralCloudSource.parse(sheet)
+                        val oc = oldCommune
+                        if (sp == null || oc == null) {
+                            Toast.makeText(context, "Nhập chưa đúng — ví dụ 5/103", Toast.LENGTH_SHORT).show()
+                            return@TextButton
+                        }
+                        val r = CadastralConvert.resolve(context, oc.slug, sp.to)
+                        if (r == null) {
+                            Toast.makeText(context, "Không có tờ ${sp.to} ở ${oc.name}", Toast.LENGTH_SHORT).show()
+                            return@TextButton
+                        }
+                        val raw = if (sp.thua != null) "${r.newTo}/${sp.thua}" else r.newTo
+                        onLoad(r.newSlug, raw)
+                    }
+                }
             ) {
                 if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 else Text("Tải")
