@@ -1,9 +1,12 @@
 package com.hien.rtkmultidevice.ui.screens.map
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.net.ConnectivityManager
 import android.provider.OpenableColumns
 import android.net.NetworkCapabilities
+import androidx.compose.ui.platform.LocalContext
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
@@ -851,6 +854,7 @@ private fun VectorFeatureSheet(
         confirmValueChange = { it != SheetValue.Hidden }   // chặn vuốt-ẩn: chỉ đóng bằng nút X hoặc unload tờ
     )
     val scope      = rememberCoroutineScope()
+    val ctx        = LocalContext.current
     var showVertexTable by remember { mutableStateOf(false) }
 
     val rawX = feature.rawPoints.getOrNull(vertexIdx)?.first  ?: feature.rawPoints.firstOrNull()?.first  ?: 0.0
@@ -960,6 +964,33 @@ private fun VectorFeatureSheet(
             }
 
             HorizontalDivider()
+
+            // ── Chỉ đường tới thửa (Google Maps) ─────────────────
+            feature.centroid?.let { c ->
+                Button(
+                    onClick = {
+                        val uri = Uri.parse(
+                            "https://www.google.com/maps/dir/?api=1" +
+                            "&destination=${c.latitude},${c.longitude}&travelmode=driving"
+                        )
+                        val intent = Intent(Intent.ACTION_VIEW, uri)
+                            .setPackage("com.google.android.apps.maps")
+                        try {
+                            ctx.startActivity(intent)
+                        } catch (e: Exception) {
+                            // Không có app Google Maps → mở bằng trình duyệt
+                            ctx.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFF00695C))
+                ) {
+                    Icon(Icons.Default.Directions, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Chỉ đường tới thửa (Google Maps)", fontWeight = FontWeight.SemiBold)
+                }
+                HorizontalDivider()
+            }
 
             // ── Nút Cắm mốc ──────────────────────────────────────
             if (isVn2000) {
