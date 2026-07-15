@@ -27,6 +27,15 @@ class VectorLayerHolder @Inject constructor() {
         _layer.value = layer
     }
 
+    /** Gộp thêm 1 tờ vào layer hiện có (mở nhiều tờ cùng lúc). Đánh lại id để không trùng. */
+    fun add(newLayer: VectorLayerImporter.VectorLayer) {
+        val cur = _layer.value
+        if (cur == null) { _layer.value = newLayer; return }
+        val merged = (cur.features + newLayer.features)
+            .mapIndexed { i, f -> f.copy(id = i) }
+        _layer.value = cur.copy(features = merged, name = "Nhiều tờ (${merged.size} đối tượng)")
+    }
+
     fun clear() {
         _layer.value = null
     }

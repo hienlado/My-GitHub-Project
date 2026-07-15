@@ -42,6 +42,7 @@ class MapViewModel @Inject constructor(
         vectorLayerHolder.layer
 
     fun setVectorLayer(layer: VectorLayerImporter.VectorLayer) = vectorLayerHolder.set(layer)
+    fun addVectorLayer(layer: VectorLayerImporter.VectorLayer) = vectorLayerHolder.add(layer)
     fun clearVectorLayer() = vectorLayerHolder.clear()
 
     // ── Tải bản đồ địa chính theo TỜ từ Cloud (GCS) ──────────────────────
@@ -102,7 +103,7 @@ class MapViewModel @Inject constructor(
             _cloudLoading.value = true
             when (val r = CadastralCloudSource.loadSheet(communeSlug, sp.to)) {
                 is VectorLayerImporter.ImportResult.Success -> {
-                    setVectorLayer(r.layer)
+                    addVectorLayer(r.layer)          // GỘP thêm tờ (mở nhiều tờ cùng lúc)
                     _targetThua.value = sp.thua
                     _cloudMessage.value =
                         if (sp.thua != null) "Đã tải tờ ${sp.to} → thửa ${sp.thua}"

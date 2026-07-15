@@ -1,3 +1,4 @@
+Starting a Gradle Daemon, 1 busy and 1 incompatible and 1 stopped Daemons could not be reused, use --status for details
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
@@ -34,18 +35,8 @@
 > Task :app:kspDebugKotlin
 
 > Task :app:compileDebugKotlin
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/CadastralCloudDialog.kt:189:45 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/MapScreen.kt:175:33 'val allNetworks: Array<(out) Network!>' is deprecated. Deprecated in Java.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/MapScreen.kt:412:55 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/CadastralCloudDialog.kt:189:45 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/GnssMapView.kt:80:26 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/MapScreen.kt:175:33 'val allNetworks: Array<(out) Network!>' is deprecated. Deprecated in Java.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/MapScreen.kt:412:55 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/VertexTableDialog.kt:107:61 Unnecessary non-null assertion (!!) on a non-null receiver of type 'Double'.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/VertexTableDialog.kt:107:89 Unnecessary non-null assertion (!!) on a non-null receiver of type 'Double'.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/stakeout/StakeoutScreen.kt:269:57 'val Icons.Filled.Label: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Label.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/stakeout/StakeoutScreen.kt:294:57 'val Icons.Filled.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.List.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/stakeout/StakeoutScreen.kt:650:40 'val Icons.Filled.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.List.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/MapScreen.kt:177:33 'val allNetworks: Array<(out) Network!>' is deprecated. Deprecated in Java.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/MapScreen.kt:431:55 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
 
 > Task :app:compileDebugJavaWithJavac
 > Task :app:processDebugJavaRes UP-TO-DATE
@@ -60,6 +51,6 @@ w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/r
 > Task :app:createDebugApkListingFileRedirect UP-TO-DATE
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 1m 24s
+BUILD SUCCESSFUL in 2m 4s
 41 actionable tasks: 8 executed, 33 up-to-date
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html

@@ -84,6 +84,8 @@ fun MapScreen(
     // ── Trạng thái tap vector feature ──────────────────────────
     var selectedVecFeature  by remember { mutableStateOf<VectorLayerImporter.VectorFeature?>(null) }
     var selectedVecVertexIdx by remember { mutableIntStateOf(0) }
+    // Bật/tắt hiển thị lớp thửa (không xoá layer — chỉ ẩn/hiện)
+    var layerVisible by remember { mutableStateOf(true) }
 
     // ── Trạng thái dialog căn chỉnh toạ độ ─────────────────────
     var showAlignDialog     by remember { mutableStateOf(false) }
@@ -269,7 +271,7 @@ fun MapScreen(
                 points              = savedPoints,
                 followGps           = followGps,
                 tileSource          = selectedTile,
-                vectorLayer         = importedLayer,
+                vectorLayer         = if (layerVisible) importedLayer else null,
                 // Highlight đối tượng đang chọn (sheet đang mở) — cyan nét đậm
                 highlightFeatureId  = selectedVecFeature?.id,
                 focusPoint          = focusPoint,
@@ -281,19 +283,36 @@ fun MapScreen(
                 }
             )
 
-            // ── Layer badge (tap để xoá layer) ────────────────────
+            // ── Badge lớp thửa: chạm nhãn để BẬT/TẮT hiển thị, ✕ để gỡ hẳn ──
             importedLayer?.let { layer ->
                 Surface(
-                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 8.dp)
-                        .clickable { viewModel.clearVectorLayer() },
-                    color = Color(0xFF7B1FA2).copy(alpha = 0.9f),
+                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 8.dp),
+                    color = Color(0xFF7B1FA2).copy(alpha = if (layerVisible) 0.9f else 0.5f),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(
-                        "📄 ${layer.name.take(16)}  ×  ${layer.featureCount} obj",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        color = Color.White, fontSize = 11.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier
+                                .clickable { layerVisible = !layerVisible }
+                                .padding(start = 8.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (layerVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = "Bật/tắt lớp thửa",
+                                tint = Color.White, modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(layer.name.take(20), color = Color.White, fontSize = 11.sp)
+                        }
+                        Icon(
+                            Icons.Default.Close, contentDescription = "Gỡ lớp thửa",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .clickable { viewModel.clearVectorLayer(); layerVisible = true }
+                                .padding(6.dp).size(15.dp)
+                        )
+                    }
                 }
             }
 
@@ -733,7 +752,7 @@ private fun VectorFeatureSheet(
     // sheetState + scope để gọi hide() trước khi navigate
     // Không gọi trực tiếp selectedVecFeature=null + navigate trong onClick
     // vì ModalBottomSheet đang ở trạng thái Expanded → remove khỏi tree → crash
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val scope      = rememberCoroutineScope()
     var showVertexTable by remember { mutableStateOf(false) }
 
@@ -763,7 +782,12 @@ private fun VectorFeatureSheet(
         VectorLayerImporter.FeatureType.POLYGON  -> "  (đỉnh $vertexIdx)"
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState       = sheetState,
+        scrimColor       = Color.Transparent,   // map vẫn thấy & chạm được sau menu (chạm thửa khác/mở lại)
+        containerColor   = MaterialTheme.colorScheme.surface.copy(alpha = 0.93f)  // hơi trong suốt
+    ) {
         Column(
             modifier            = Modifier
                 .fillMaxWidth()
