@@ -25,12 +25,18 @@ object CadastralCloudSource {
 
     /** Danh sách xã (slug khớp thư mục pipeline -> tên hiển thị). */
     val COMMUNES = listOf(
-        "binhgia" to "Xã Bình Giã",
-        "chauduc" to "Xã Châu Đức",
-        "kimlong" to "Xã Kim Long",
-        "ngaigiao" to "Xã Ngãi Giao",
-        "nghiathanh" to "Xã Nghĩa Thành",
-        "xuanson" to "Xã Xuân Sơn",
+        "xabaulam" to "Xã Bàu Lâm",
+        "xabinhchau" to "Xã Bình Châu",
+        "xabinhgia" to "Xã Bình Giã",
+        "xachauduc" to "Xã Châu Đức",
+        "xahoahiep" to "Xã Hoà Hiệp",
+        "xahoahoi" to "Xã Hoà Hội",
+        "xahotram" to "Xã Hồ Tràm",
+        "xakimlong" to "Xã Kim Long",
+        "xangaigiao" to "Xã Ngãi Giao",
+        "xanghiathanh" to "Xã Nghĩa Thành",
+        "xaxuanson" to "Xã Xuân Sơn",
+        "xaxuyenmoc" to "Xã Xuyên Mộc",
     )
 
     /** Tờ + thửa sau khi tách chuỗi nhập. */
