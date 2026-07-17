@@ -116,22 +116,29 @@ object CadastralCloudSource {
                 setRequestProperty("X-API-Key", API_KEY)
             }
             if (conn.responseCode != 200) return@withContext emptyList()
-            val arr = org.json.JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
-            val out = ArrayList<SheetBox>(arr.length())
-            for (i in 0 until arr.length()) {
-                val o = arr.getJSONObject(i)
-                if (!o.has("lonmin")) continue
-                out.add(SheetBox(
-                    o.optString("commune"), o.optString("communeName"), o.optString("to"),
-                    o.optDouble("lonmin"), o.optDouble("latmin"),
-                    o.optDouble("lonmax"), o.optDouble("latmax")
-                ))
-            }
-            out
+            parseIndex(conn.inputStream.bufferedReader().use { it.readText() })
         } catch (e: Exception) {
             emptyList()
         } finally {
             conn?.disconnect()
         }
+    }
+
+    /** Parse nội dung _index.json (mảng) -> danh sách khung tờ. Dùng chung cho cả cloud và offline. */
+    fun parseIndex(jsonText: String): List<SheetBox> = try {
+        val arr = org.json.JSONArray(jsonText)
+        val out = ArrayList<SheetBox>(arr.length())
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            if (!o.has("lonmin")) continue
+            out.add(SheetBox(
+                o.optString("commune"), o.optString("communeName"), o.optString("to"),
+                o.optDouble("lonmin"), o.optDouble("latmin"),
+                o.optDouble("lonmax"), o.optDouble("latmax")
+            ))
+        }
+        out
+    } catch (e: Exception) {
+        emptyList()
     }
 }

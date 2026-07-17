@@ -37,6 +37,7 @@ fun CadastralCloudButton(
 ) {
     val loading by viewModel.cloudLoading.collectAsStateWithLifecycle()
     val message by viewModel.cloudMessage.collectAsStateWithLifecycle()
+    val offline by viewModel.offlineMode.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var show by remember { mutableStateOf(false) }
 
@@ -52,6 +53,9 @@ fun CadastralCloudButton(
     }
     if (show) CadastralCloudDialog(
         loading = loading,
+        offline = offline,
+        hasOffline = viewModel.hasOfflineData(),
+        onOfflineChange = { viewModel.setOfflineMode(it) },
         onLoad = { c, s -> viewModel.loadCadastralSheet(c, s); show = false },
         onDismiss = { show = false }
     )
@@ -164,6 +168,9 @@ fun CoordLookupButton(
 @Composable
 fun CadastralCloudDialog(
     loading: Boolean,
+    offline: Boolean = false,
+    hasOffline: Boolean = false,
+    onOfflineChange: (Boolean) -> Unit = {},
     onLoad: (communeSlug: String, sheet: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -194,6 +201,22 @@ fun CadastralCloudDialog(
         title = { Text("Tải bản đồ địa chính (Cloud)") },
         text = {
             Column {
+                // Nguồn dữ liệu: Cloud (cần mạng) hoặc Offline (đọc từ bộ nhớ máy)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    FilterChip(selected = !offline, onClick = { onOfflineChange(false) }, label = { Text("Cloud") })
+                    Spacer(Modifier.width(8.dp))
+                    FilterChip(selected = offline, onClick = { onOfflineChange(true) }, label = { Text("Offline") })
+                }
+                if (offline && !hasOffline) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Chưa có dữ liệu offline trên máy — chép thư mục sheets/ vào bộ nhớ ứng dụng.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     FilterChip(selected = !oldMode, onClick = { oldMode = false }, label = { Text("Xã mới") })
                     Spacer(Modifier.width(8.dp))

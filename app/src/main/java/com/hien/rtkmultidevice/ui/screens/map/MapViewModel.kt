@@ -9,7 +9,9 @@ import com.hien.rtkmultidevice.domain.model.SurveyPoint
 import com.hien.rtkmultidevice.domain.repository.IProjectRepository
 import com.hien.rtkmultidevice.domain.repository.ISurveyPointRepository
 import com.hien.rtkmultidevice.ui.screens.stakeout.StakeoutTargetHolder
+import android.content.Context
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,8 +33,15 @@ class MapViewModel @Inject constructor(
     private val projectRepo : IProjectRepository,
     private val surveyRepo  : ISurveyPointRepository,
     private val stakeoutTargetHolder: StakeoutTargetHolder,
-    private val vectorLayerHolder   : VectorLayerHolder
+    private val vectorLayerHolder   : VectorLayerHolder,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
+
+    // ── Chế độ OFFLINE (đọc dữ liệu địa chính từ bộ nhớ máy thay vì Cloud) ──
+    private val _offlineMode = MutableStateFlow(CadastralLocalSource.hasData(appContext))
+    val offlineMode: StateFlow<Boolean> = _offlineMode.asStateFlow()
+    fun setOfflineMode(on: Boolean) { _offlineMode.value = on; _sheetFrames.value = emptyList() }
+    fun hasOfflineData(): Boolean = CadastralLocalSource.hasData(appContext)
 
     /**
      * Layer CAD dùng chung (VectorLayerHolder) — import ở đây thì màn hình
@@ -67,8 +76,11 @@ class MapViewModel @Inject constructor(
     fun loadSheetFramesIfNeeded() {
         if (_sheetFrames.value.isNotEmpty()) return
         viewModelScope.launch {
-            val list = CadastralCloudSource.loadIndex()
-            if (list.isEmpty()) _cloudMessage.value = "Chưa tải được chỉ mục tờ"
+            val list = if (_offlineMode.value) CadastralLocalSource.loadIndex(appContext)
+                       else CadastralCloudSource.loadIndex()
+            if (list.isEmpty()) _cloudMessage.value =
+                if (_offlineMode.value) "Chưa có chỉ mục tờ offline (chép sheets/ vào máy)"
+                else "Chưa tải được chỉ mục tờ"
             _sheetFrames.value = list
         }
     }
@@ -115,7 +127,9 @@ class MapViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _cloudLoading.value = true
-            when (val r = CadastralCloudSource.loadSheet(communeSlug, sp.to)) {
+            val r = if (_offlineMode.value) CadastralLocalSource.loadSheet(appContext, communeSlug, sp.to)
+                    else CadastralCloudSource.loadSheet(communeSlug, sp.to)
+            when (r) {
                 is VectorLayerImporter.ImportResult.Success -> {
                     addVectorLayer(r.layer)          // GỘP thêm tờ (mở nhiều tờ cùng lúc)
                     _targetThua.value = sp.thua
