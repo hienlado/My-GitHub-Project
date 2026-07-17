@@ -62,11 +62,14 @@ object CadastralConvert {
         ensureLoaded(context); return olds
     }
 
-    /** Tra tờ cũ -> tờ mới. Trả null nếu không có. */
-    fun resolve(context: Context, oldSlug: String, oldTo: String): Resolved? {
+    /**
+     * Tra tờ cũ -> tờ mới. Cần cả newSlug vì một xã cũ có thể TÁCH sang nhiều đơn vị mới
+     * (vd "Phước Hưng" -> Bà Rịa và Long Hải). Khoá map = "&lt;oldSlug&gt;@&lt;newSlug&gt;".
+     */
+    fun resolve(context: Context, oldSlug: String, newSlug: String, oldTo: String): Resolved? {
         ensureLoaded(context)
-        val newTo = map[oldSlug]?.get(oldTo.trim().filter { it.isDigit() }) ?: return null
-        val oc = olds.firstOrNull { it.slug == oldSlug } ?: return null
+        val newTo = map["$oldSlug@$newSlug"]?.get(oldTo.trim().filter { it.isDigit() }) ?: return null
+        val oc = olds.firstOrNull { it.slug == oldSlug && it.newSlug == newSlug } ?: return null
         return Resolved(oc.newSlug, oc.newName, newTo)
     }
 }

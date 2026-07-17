@@ -191,8 +191,8 @@ fun CadastralCloudDialog(
     val preview: String? = if (oldMode && oldCommune != null) {
         val sp = CadastralCloudSource.parse(sheet)
         if (sp == null) null
-        else CadastralConvert.resolve(context, oldCommune!!.slug, sp.to)?.let { r ->
-            "→ X. ${r.newName}, Tờ ${r.newTo}" + (sp.thua?.let { " — Thửa $it" } ?: "")
+        else CadastralConvert.resolve(context, oldCommune!!.slug, oldCommune!!.newSlug, sp.to)?.let { r ->
+            "→ ${r.newName}, Tờ ${r.newTo}" + (sp.thua?.let { " — Thửa $it" } ?: "")
         } ?: "→ Không có tờ ${sp.to} ở ${oldCommune!!.name}"
     } else null
 
@@ -304,7 +304,7 @@ fun CadastralCloudDialog(
                             Toast.makeText(context, "Nhập chưa đúng — ví dụ 5/103", Toast.LENGTH_SHORT).show()
                             return@TextButton
                         }
-                        val r = CadastralConvert.resolve(context, oc.slug, sp.to)
+                        val r = CadastralConvert.resolve(context, oc.slug, oc.newSlug, sp.to)
                         if (r == null) {
                             Toast.makeText(context, "Không có tờ ${sp.to} ở ${oc.name}", Toast.LENGTH_SHORT).show()
                             return@TextButton

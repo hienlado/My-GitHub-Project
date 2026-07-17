@@ -23,18 +23,30 @@ object CadastralCloudSource {
     /** Kinh tuyến trục VN-2000 khu vực (BR-VT: 107°45'). */
     const val CENTRAL_MERIDIAN = 107.75
 
-    /** Danh sách xã (slug khớp thư mục pipeline -> tên hiển thị). */
+    /** Danh sách xã/phường (slug khớp thư mục pipeline -> tên hiển thị). */
     val COMMUNES = listOf(
+        "phuongbaria" to "Phường Bà Rịa",
+        "phuonglonghuong" to "Phường Long Hương",
+        "phuongphumy" to "Phường Phú Mỹ",
+        "phuongtamlong" to "Phường Tam Long",
+        "phuongtanhai" to "Phường Tân Hải",
+        "phuongtanphuoc" to "Phường Tân Phước",
+        "phuongtanthanh" to "Phường Tân Thành",
         "xabaulam" to "Xã Bàu Lâm",
         "xabinhchau" to "Xã Bình Châu",
         "xabinhgia" to "Xã Bình Giã",
         "xachauduc" to "Xã Châu Đức",
+        "xachaupha" to "Xã Châu Pha",
+        "xadatdo" to "Xã Đất Đỏ",
         "xahoahiep" to "Xã Hoà Hiệp",
         "xahoahoi" to "Xã Hoà Hội",
         "xahotram" to "Xã Hồ Tràm",
         "xakimlong" to "Xã Kim Long",
+        "xalongdien" to "Xã Long Điền",
+        "xalonghai" to "Xã Long Hải",
         "xangaigiao" to "Xã Ngãi Giao",
         "xanghiathanh" to "Xã Nghĩa Thành",
+        "xaphuochai" to "Xã Phước Hải",
         "xaxuanson" to "Xã Xuân Sơn",
         "xaxuyenmoc" to "Xã Xuyên Mộc",
     )
