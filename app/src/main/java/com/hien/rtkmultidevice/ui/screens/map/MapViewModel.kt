@@ -100,7 +100,9 @@ class MapViewModel @Inject constructor(
             val vn = com.hien.rtkmultidevice.core.coordinate.Vn2000Converter
                 .convert(lat, lon, 0.0, CadastralCloudSource.CENTRAL_MERIDIAN)
             if (vn == null) _cloudMessage.value = "Không đổi được toạ độ VN-2000"
-            else _whereResult.value = CadastralCloudSource.whereAmI(vn.easting, vn.northing)
+            else _whereResult.value =
+                if (_offlineMode.value) CadastralLocalSource.whereAmIVn2000(appContext, vn.easting, vn.northing)
+                else CadastralCloudSource.whereAmI(vn.easting, vn.northing)
             _cloudLoading.value = false
         }
     }
@@ -109,7 +111,9 @@ class MapViewModel @Inject constructor(
     fun whereAmIVn2000(x: Double, y: Double) {
         viewModelScope.launch {
             _cloudLoading.value = true
-            _whereResult.value = CadastralCloudSource.whereAmI(x, y)
+            _whereResult.value =
+                if (_offlineMode.value) CadastralLocalSource.whereAmIVn2000(appContext, x, y)
+                else CadastralCloudSource.whereAmI(x, y)
             _cloudLoading.value = false
         }
     }

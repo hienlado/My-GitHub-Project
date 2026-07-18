@@ -260,6 +260,8 @@ fun MapScreen(
                     WhereAmIButton(viewModel, gnss.latitude, gnss.longitude, modifier = Modifier.size(38.dp))
                     // ── Tra thửa theo toạ độ nhập tay ───────────────
                     CoordLookupButton(viewModel, modifier = Modifier.size(38.dp))
+                    // ── Tìm thửa theo TÊN CHỦ (offline) ─────────────
+                    OwnerSearchButton(viewModel, modifier = Modifier.size(38.dp))
                     // ── Bật/tắt khung tờ tổng thể ───────────────────
                     IconButton(
                         onClick = {
@@ -927,6 +929,10 @@ private fun VectorFeatureSheet(
 
             if (feature.label.isNotEmpty()) {
                 Text("\"${feature.label}\"", fontWeight = FontWeight.Medium, fontSize = 15.sp)
+            }
+            if (feature.chuSuDung.isNotEmpty()) {
+                Text("Chủ: ${feature.chuSuDung}", fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             HorizontalDivider()

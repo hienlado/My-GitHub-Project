@@ -64,7 +64,8 @@ object VectorLayerImporter {
         val label           : String = "",
         val soThua          : String = "",
         val dienTich        : String = "",
-        val loaiDat         : String = ""
+        val loaiDat         : String = "",
+        val chuSuDung       : String = ""
     ) {
         val centroid: GeoPoint? get() {
             if (geoPoints.isEmpty()) return null
@@ -497,7 +498,7 @@ object VectorLayerImporter {
 
         fun addGeometry(
             geom: org.json.JSONObject, label: String,
-            soThua: String = "", dienTich: String = "", loaiDat: String = ""
+            soThua: String = "", dienTich: String = "", loaiDat: String = "", chuSuDung: String = ""
         ) {
             val coords = geom.optJSONArray("coordinates") ?: return
             when (geom.optString("type")) {
@@ -506,26 +507,26 @@ object VectorLayerImporter {
                     val (cs, cm, gp) = resolve(x, y, hintCentralMeridian)
                     if (gp != null) {
                         if (layerCs == CoordSystem.UNKNOWN_PROJECTED) { layerCs = cs; layerCm = cm }
-                        features += VectorFeature(idSeq++, FeatureType.POINT, listOf(gp), listOf(Pair(x, y)), cs, cm, "", label, soThua, dienTich, loaiDat)
+                        features += VectorFeature(idSeq++, FeatureType.POINT, listOf(gp), listOf(Pair(x, y)), cs, cm, "", label, soThua, dienTich, loaiDat, chuSuDung)
                     }
                 }
                 "LineString" -> {
                     val (g, r) = coordsToPts(coords)
-                    if (g.size >= 2) features += VectorFeature(idSeq++, FeatureType.POLYLINE, g, r, layerCs, layerCm, "", label, soThua, dienTich, loaiDat)
+                    if (g.size >= 2) features += VectorFeature(idSeq++, FeatureType.POLYLINE, g, r, layerCs, layerCm, "", label, soThua, dienTich, loaiDat, chuSuDung)
                 }
                 "Polygon" -> if (coords.length() > 0) {
                     val (g, r) = coordsToPts(coords.getJSONArray(0))   // vòng ngoài
-                    if (g.size >= 3) features += VectorFeature(idSeq++, FeatureType.POLYGON, g, r, layerCs, layerCm, "", label, soThua, dienTich, loaiDat)
+                    if (g.size >= 3) features += VectorFeature(idSeq++, FeatureType.POLYGON, g, r, layerCs, layerCm, "", label, soThua, dienTich, loaiDat, chuSuDung)
                 }
                 "MultiLineString" -> for (i in 0 until coords.length()) {
                     val (g, r) = coordsToPts(coords.getJSONArray(i))
-                    if (g.size >= 2) features += VectorFeature(idSeq++, FeatureType.POLYLINE, g, r, layerCs, layerCm, "", label, soThua, dienTich, loaiDat)
+                    if (g.size >= 2) features += VectorFeature(idSeq++, FeatureType.POLYLINE, g, r, layerCs, layerCm, "", label, soThua, dienTich, loaiDat, chuSuDung)
                 }
                 "MultiPolygon" -> for (i in 0 until coords.length()) {
                     val poly = coords.getJSONArray(i)
                     if (poly.length() > 0) {
                         val (g, r) = coordsToPts(poly.getJSONArray(0))
-                        if (g.size >= 3) features += VectorFeature(idSeq++, FeatureType.POLYGON, g, r, layerCs, layerCm, "", label, soThua, dienTich, loaiDat)
+                        if (g.size >= 3) features += VectorFeature(idSeq++, FeatureType.POLYGON, g, r, layerCs, layerCm, "", label, soThua, dienTich, loaiDat, chuSuDung)
                     }
                 }
             }
@@ -553,7 +554,8 @@ object VectorLayerImporter {
                     val soThua   = propOf(props, listOf("so_thua", "SoThua", "TCT", "SoHieuThua")).ifEmpty { label }
                     val dienTich = propOf(props, listOf("dien_tich_m2", "DienTich", "DTPhapLy", "DienTichThuc"))
                     val loaiDat  = propOf(props, listOf("loai_dat", "LRD", "MaLD", "LoaiDat", "KyHieuDTSD"))
-                    addGeometry(geom, label, soThua, dienTich, loaiDat)
+                    val chu      = propOf(props, listOf("TenChu", "ten_chu", "ChuSuDung", "TenChuSuDung", "Chu", "chu_su_dung"))
+                    addGeometry(geom, label, soThua, dienTich, loaiDat, chu)
                 }
             }
             "Feature" -> root.optJSONObject("geometry")?.let { addGeometry(it, labelOf(root.optJSONObject("properties"))) }

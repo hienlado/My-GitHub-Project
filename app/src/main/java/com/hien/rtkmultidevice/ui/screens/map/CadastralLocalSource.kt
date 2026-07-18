@@ -25,6 +25,50 @@ object CadastralLocalSource {
     /** Có sẵn dữ liệu offline hay chưa (đã chép sheets/_index.json vào máy). */
     fun hasData(context: Context): Boolean = File(sheetsDir(context), "_index.json").exists()
 
+    /** Có chỉ mục tên chủ (sheets/_owners.json) để tìm theo chủ sử dụng. */
+    fun hasOwners(context: Context): Boolean = File(sheetsDir(context), "_owners.json").exists()
+
+    /** Một kết quả tìm theo tên chủ. */
+    data class OwnerHit(
+        val chu: String, val commune: String, val communeName: String,
+        val to: String, val thua: String, val dienTich: String
+    )
+
+    @Volatile private var ownersCache: List<OwnerHit>? = null
+
+    private fun deaccent(s: String): String {
+        val n = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
+        return n.replace(Regex("\\p{Mn}+"), "").replace('đ', 'd').replace('Đ', 'D').lowercase()
+    }
+
+    private fun ensureOwners(context: Context): List<OwnerHit> {
+        ownersCache?.let { return it }
+        val f = File(sheetsDir(context), "_owners.json")
+        val list = if (!f.exists()) emptyList() else try {
+            val arr = org.json.JSONArray(f.readText())
+            ArrayList<OwnerHit>(arr.length()).apply {
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    add(OwnerHit(
+                        o.optString("chu"), o.optString("commune"), o.optString("communeName"),
+                        o.optString("to"), o.optString("thua"), o.optString("dienTich")))
+                }
+            }
+        } catch (e: Exception) { emptyList() }
+        ownersCache = list
+        return list
+    }
+
+    /** Tìm thửa theo TÊN CHỦ (offline, không dấu, khớp chuỗi con). */
+    suspend fun searchOwner(context: Context, query: String, limit: Int = 60): List<OwnerHit> =
+        withContext(Dispatchers.IO) {
+            val q = deaccent(query.trim())
+            if (q.isBlank()) return@withContext emptyList()
+            ensureOwners(context).asSequence()
+                .filter { deaccent(it.chu).contains(q) }
+                .take(limit).toList()
+        }
+
     /** Tải 1 tờ từ file cục bộ -> VectorLayer (VN-2000, sẵn sàng đo/cắm mốc). */
     suspend fun loadSheet(
         context: Context, communeSlug: String, to: String
@@ -58,4 +102,50 @@ object CadastralLocalSource {
                 emptyList()
             }
         }
+
+    /**
+     * Tra ngược điểm -> xã/tờ/thửa OFFLINE (điểm-trong-đa-giác cục bộ).
+     * Nhận toạ độ VN-2000 (x=Easting, y=Northing); đổi sang WGS-84 rồi:
+     *   1) lọc tờ ứng viên theo bbox WGS-84 trong _index.json,
+     *   2) nạp từng tờ, tìm thửa BAO điểm bằng VectorLayerImporter.findEnclosingFeature.
+     */
+    suspend fun whereAmIVn2000(
+        context: Context, xEasting: Double, yNorthing: Double
+    ): CadastralCloudSource.WhereResult = withContext(Dispatchers.IO) {
+        val gp = VectorLayerImporter.inverseVn2000(
+            yNorthing, xEasting, CadastralCloudSource.CENTRAL_MERIDIAN)
+            ?: return@withContext CadastralCloudSource.WhereResult(
+                false, message = "Toạ độ VN-2000 không hợp lệ")
+        val lat = gp.latitude; val lon = gp.longitude
+
+        val idx = loadIndex(context)
+        if (idx.isEmpty())
+            return@withContext CadastralCloudSource.WhereResult(
+                false, message = "Chưa có dữ liệu offline (chép sheets/ vào máy)")
+
+        // Ứng viên: tờ có bbox WGS-84 chứa điểm (nới nhẹ 1e-6 cho sai số biên).
+        val cands = idx.filter {
+            lon >= it.lonMin - 1e-6 && lon <= it.lonMax + 1e-6 &&
+            lat >= it.latMin - 1e-6 && lat <= it.latMax + 1e-6
+        }
+        for (box in cands) {
+            when (val r = loadSheet(context, box.commune, box.to)) {
+                is VectorLayerImporter.ImportResult.Success -> {
+                    val f = VectorLayerImporter.findEnclosingFeature(r.layer, lat, lon)
+                    if (f != null) {
+                        return@withContext CadastralCloudSource.WhereResult(
+                            found = true,
+                            xaName = box.communeName,
+                            to = box.to,
+                            thua = f.soThua.ifBlank { f.label },
+                            dienTich = f.dienTich,
+                            tenChu = f.chuSuDung
+                        )
+                    }
+                }
+                else -> { /* bỏ qua tờ lỗi, thử tờ tiếp theo */ }
+            }
+        }
+        CadastralCloudSource.WhereResult(false, message = "Ngoài phạm vi bản đồ offline")
+    }
 }

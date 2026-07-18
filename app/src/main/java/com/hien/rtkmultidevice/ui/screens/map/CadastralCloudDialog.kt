@@ -1,23 +1,30 @@
 package com.hien.rtkmultidevice.ui.screens.map
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import android.widget.Toast
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.EditLocationAlt
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -160,6 +167,85 @@ fun CoordLookupButton(
                 ) { Text("Tra") }
             },
             dismissButton = { TextButton(onClick = { show = false }) { Text("Đóng") } }
+        )
+    }
+}
+
+/**
+ * Nút "Tìm thửa theo TÊN CHỦ" (OFFLINE) — đọc sheets/_owners.json, gõ tên -> danh sách thửa,
+ * chạm 1 kết quả để nạp đúng tờ và điều hướng tới thửa.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OwnerSearchButton(
+    viewModel: MapViewModel,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    var show by remember { mutableStateOf(false) }
+
+    IconButton(onClick = { show = true }, modifier = modifier) {
+        Icon(Icons.Default.Person, contentDescription = "Tìm theo tên chủ")
+    }
+
+    if (show) {
+        var query by remember { mutableStateOf("") }
+        var results by remember { mutableStateOf<List<CadastralLocalSource.OwnerHit>>(emptyList()) }
+        val hasOwners = remember { CadastralLocalSource.hasOwners(context) }
+
+        LaunchedEffect(query) {
+            results = if (query.trim().length < 2) emptyList()
+                      else CadastralLocalSource.searchOwner(context, query)
+        }
+
+        AlertDialog(
+            onDismissRequest = { show = false },
+            title = { Text("Tìm thửa theo tên chủ") },
+            text = {
+                Column {
+                    if (!hasOwners) {
+                        Text(
+                            "Chưa có dữ liệu chủ offline — chép sheets/_owners.json vào máy.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    OutlinedTextField(
+                        value = query, onValueChange = { query = it },
+                        label = { Text("Tên chủ sử dụng") },
+                        placeholder = { Text("vd: Nguyễn Văn A") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    if (query.trim().length >= 2 && results.isEmpty())
+                        Text("Không tìm thấy.", style = MaterialTheme.typography.bodySmall)
+                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+                        items(results) { hit ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.setOfflineMode(true)
+                                        viewModel.loadCadastralSheet(hit.commune, "${hit.to}/${hit.thua}")
+                                        show = false
+                                    }
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                Text(hit.chu, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "${hit.communeName} — Tờ ${hit.to}, Thửa ${hit.thua}" +
+                                        (if (hit.dienTich.isNotBlank()) " • ${hit.dienTich} m²" else ""),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                HorizontalDivider()
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { show = false }) { Text("Đóng") } }
         )
     }
 }
