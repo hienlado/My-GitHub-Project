@@ -220,32 +220,30 @@ fun OwnerSearchButton(
                     Spacer(Modifier.height(8.dp))
                     if (query.trim().length >= 2 && results.isEmpty())
                         Text("Không tìm thấy.", style = MaterialTheme.typography.bodySmall)
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 320.dp)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        results.take(40).forEach { hit ->
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        viewModel.setOfflineMode(true)
-                                        viewModel.loadCadastralSheet(hit.commune, "${hit.to}/${hit.thua}")
-                                        show = false
-                                    }
-                                    .padding(vertical = 8.dp)
-                            ) {
-                                Text(hit.chu, fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    "${hit.communeName} — Tờ ${hit.to}, Thửa ${hit.thua}" +
-                                        (if (hit.dienTich.isNotBlank()) " • ${hit.dienTich} m²" else ""),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                HorizontalDivider()
-                            }
+                    // KHÔNG lồng cuộn dọc trong AlertDialog (gây crash). Dialog tự cuộn; giới hạn 25 dòng.
+                    if (results.size > 25)
+                        Text("Nhiều kết quả — hiển thị 25 đầu, gõ thêm để lọc.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    results.take(25).forEach { hit ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.setOfflineMode(true)
+                                    viewModel.loadCadastralSheet(hit.commune, "${hit.to}/${hit.thua}")
+                                    show = false
+                                }
+                                .padding(vertical = 8.dp)
+                        ) {
+                            Text(hit.chu, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "${hit.communeName} — Tờ ${hit.to}, Thửa ${hit.thua}" +
+                                    (if (hit.dienTich.isNotBlank()) " • ${hit.dienTich} m²" else ""),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            HorizontalDivider()
                         }
                     }
                 }
