@@ -95,6 +95,7 @@ fun MapScreen(
     // Overlay khung tờ tổng thể (bật/tắt)
     val allFrames by viewModel.sheetFrames.collectAsStateWithLifecycle()
     var showFrames by remember { mutableStateOf(false) }
+    var showLabels by remember { mutableStateOf(true) }
 
     // ── Trạng thái dialog căn chỉnh toạ độ ─────────────────────
     var showAlignDialog     by remember { mutableStateOf(false) }
@@ -254,36 +255,8 @@ fun MapScreen(
                         if (isImporting) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
                         else Icon(Icons.Default.FileOpen, "Import DXF/SHP", Modifier.size(19.dp), tint = Color.White)
                     }
-                    // ── Tải bản đồ địa chính từ Cloud ───────────────
-                    CadastralCloudButton(viewModel, modifier = Modifier.size(38.dp))
-                    // ── Tôi đang ở thửa nào ─────────────────────────
-                    WhereAmIButton(viewModel, gnss.latitude, gnss.longitude, modifier = Modifier.size(38.dp))
-                    // ── Tra thửa theo toạ độ nhập tay ───────────────
-                    CoordLookupButton(viewModel, modifier = Modifier.size(38.dp))
-                    // ── Tìm thửa theo TÊN CHỦ (offline) ─────────────
-                    OwnerSearchButton(viewModel, modifier = Modifier.size(38.dp))
-                    // ── Bật/tắt khung tờ tổng thể ───────────────────
-                    IconButton(
-                        onClick = {
-                            showFrames = !showFrames
-                            if (showFrames) viewModel.loadSheetFramesIfNeeded()
-                        },
-                        modifier = Modifier.size(38.dp)
-                    ) {
-                        Icon(
-                            if (showFrames) Icons.Default.GridOff else Icons.Default.GridOn,
-                            contentDescription = "Khung tờ tổng thể",
-                            tint = if (showFrames) Color(0xFF80FF80) else Color.White,
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
-                    // ── Follow GPS ──────────────────────────────────
-                    com.hien.rtkmultidevice.ui.components.CompactActionIcon(
-                        icon = if (followGps) Icons.Default.GpsFixed else Icons.Default.GpsNotFixed,
-                        contentDescription = "Follow GPS",
-                        tint = if (followGps) Color(0xFF80FF80) else Color.White,
-                        onClick = viewModel::toggleFollowGps
-                    )
+                    // Cụm công cụ địa chính (Cloud/WhereAmI/Toạ độ/Tên chủ/Khung tờ/Nhãn/Follow)
+                    // đã CHUYỂN sang thanh dọc cạnh PHẢI màn hình (xem MapToolRail bên dưới).
                 }
             )
         }
@@ -300,6 +273,7 @@ fun MapScreen(
                 vectorLayer         = if (layerVisible) importedLayer else null,
                 // Highlight đối tượng đang chọn (sheet đang mở) — cyan nét đậm
                 highlightFeatureId  = selectedVecFeature?.id,
+                showLabels          = showLabels,
                 focusPoint          = focusPoint,
                 sheetFrames         = if (showFrames) allFrames else emptyList(),
                 onSheetTap          = { commune, to -> viewModel.loadCadastralSheet(commune, to) },
@@ -310,6 +284,55 @@ fun MapScreen(
                     selectedVecVertexIdx = vidx
                 }
             )
+
+            // ── Thanh công cụ DỌC cạnh PHẢI (MapToolRail) ─────────────
+            Surface(
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 6.dp),
+                color = Color(0xCC1E272E),
+                contentColor = Color.White,
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
+                    CadastralCloudButton(viewModel, modifier = Modifier.size(40.dp))
+                    WhereAmIButton(viewModel, gnss.latitude, gnss.longitude, modifier = Modifier.size(40.dp))
+                    CoordLookupButton(viewModel, modifier = Modifier.size(40.dp))
+                    OwnerSearchButton(viewModel, modifier = Modifier.size(40.dp))
+                    // Bật/tắt khung tờ tổng thể
+                    IconButton(onClick = {
+                        showFrames = !showFrames
+                        if (showFrames) viewModel.loadSheetFramesIfNeeded()
+                    }, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            if (showFrames) Icons.Default.GridOff else Icons.Default.GridOn,
+                            "Khung tờ tổng thể",
+                            tint = if (showFrames) Color(0xFF80FF80) else Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    // Bật/tắt NHÃN thửa
+                    IconButton(onClick = { showLabels = !showLabels }, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            if (showLabels) Icons.Default.Label else Icons.Default.LabelOff,
+                            "Nhãn thửa",
+                            tint = if (showLabels) Color(0xFF80FF80) else Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    // Follow GPS
+                    IconButton(onClick = viewModel::toggleFollowGps, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            if (followGps) Icons.Default.GpsFixed else Icons.Default.GpsNotFixed,
+                            "Follow GPS",
+                            tint = if (followGps) Color(0xFF80FF80) else Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
 
             // ── Badge lớp thửa: chạm nhãn để BẬT/TẮT hiển thị, ✕ để gỡ hẳn ──
             importedLayer?.let { layer ->
@@ -509,7 +532,7 @@ private fun OsmMapView(
                 }
                 updateMapOverlays(mapView, gnss, points, followGps, onScrolled, onMarkerTap)
                 updateSheetFrames(mapView, sheetFrames, onSheetTap)
-                updateVectorOverlay(mapView, vectorLayer, highlightFeatureId, onVectorFeatureTap)
+                updateVectorOverlay(mapView, vectorLayer, highlightFeatureId, showLabels, onVectorFeatureTap)
             }
         )
 

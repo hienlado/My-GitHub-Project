@@ -323,7 +323,8 @@ fun SurveyScreen(
                 Column(
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(6.dp)
+                        // top=46dp: nằm DƯỚI badge trạng thái RTK (fix chip) để không bị đè
+                        .padding(start = 6.dp, top = 46.dp, end = 6.dp, bottom = 6.dp)
                         .background(Color.Black.copy(alpha = 0.32f), RoundedCornerShape(14.dp))
                         .padding(vertical = 2.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),

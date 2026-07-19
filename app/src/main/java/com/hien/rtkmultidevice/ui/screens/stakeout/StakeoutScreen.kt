@@ -20,7 +20,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.GpsNotFixed
@@ -292,6 +295,10 @@ fun StakeoutScreen(
                     }
                     if (savedPoints.isNotEmpty()) {
                         CompactActionIcon(Icons.Default.List, "Chọn điểm") { showPointPicker = true }
+                        // Điều hướng loạt điểm cắm mốc: gần nhất / trước / kế
+                        CompactActionIcon(Icons.Default.NearMe, "Điểm gần nhất", onClick = viewModel::stakeNearest)
+                        CompactActionIcon(Icons.Default.ChevronLeft, "Điểm trước", onClick = viewModel::stakePrev)
+                        CompactActionIcon(Icons.Default.ChevronRight, "Điểm kế", onClick = viewModel::stakeNext)
                     }
                     if (targetN.isNotEmpty() || targetE.isNotEmpty() || targetLine != null) {
                         CompactActionIcon(Icons.Default.Clear, "Xoá target", onClick = viewModel::clearTarget)

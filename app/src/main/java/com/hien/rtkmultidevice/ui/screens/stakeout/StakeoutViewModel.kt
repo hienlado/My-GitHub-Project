@@ -230,6 +230,51 @@ class StakeoutViewModel @Inject constructor(
         _targetLine.value = null
     }
 
+    // ── Điều hướng LOẠT ĐIỂM cắm mốc (từ Bảng toạ độ) ───────────
+    private val _stakeIndex = MutableStateFlow(-1)
+    val stakeIndex: StateFlow<Int> = _stakeIndex.asStateFlow()
+
+    private fun applyStakeIndex(idx: Int) {
+        val pts = savedPoints.value
+        if (pts.isEmpty()) { _error.value = "Chưa có điểm nào trong danh sách"; return }
+        val i = idx.coerceIn(0, pts.size - 1)
+        _stakeIndex.value = i
+        selectSavedPoint(pts[i])
+    }
+
+    /** Điểm KẾ tiếp trong danh sách. */
+    fun stakeNext() {
+        if (savedPoints.value.isEmpty()) return
+        applyStakeIndex(if (_stakeIndex.value < 0) 0 else _stakeIndex.value + 1)
+    }
+
+    /** Điểm TRƯỚC đó. */
+    fun stakePrev() {
+        if (savedPoints.value.isEmpty()) return
+        applyStakeIndex(if (_stakeIndex.value < 0) 0 else _stakeIndex.value - 1)
+    }
+
+    /** Nhảy đến điểm GẦN NHẤT vị trí RTK hiện tại. */
+    fun stakeNearest() {
+        val pts = savedPoints.value.filter { !(it.northing == 0.0 && it.easting == 0.0) }
+        if (pts.isEmpty()) { _error.value = "Không có điểm nào có toạ độ VN-2000"; return }
+        val g = gnssManager.gnssStatus.value
+        val cur = com.hien.rtkmultidevice.core.coordinate.Vn2000Converter
+            .convert(g.latitude, g.longitude, 0.0, hintCm)
+        val nearest = if (cur != null)
+            pts.minByOrNull { p ->
+                val dn = p.northing - cur.northing; val de = p.easting - cur.easting; dn * dn + de * de
+            }
+        else
+            pts.minByOrNull { p ->
+                val a = p.latitude - g.latitude; val b = p.longitude - g.longitude; a * a + b * b
+            }
+        nearest?.let { t ->
+            _stakeIndex.value = savedPoints.value.indexOf(t)
+            selectSavedPoint(t)
+        }
+    }
+
     /**
      * Đặt target theo toạ độ nhập tay. Tự thoát chế độ định vị tuyến.
      * @param featureId Id feature CAD chứa điểm (nếu chọn từ đối tượng vector)

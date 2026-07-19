@@ -1,4 +1,3 @@
-Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
@@ -35,8 +34,24 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:kspDebugKotlin
 
 > Task :app:compileDebugKotlin
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/CadastralCloudDialog.kt:356:49 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/CadastralCloudDialog.kt:381:49 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/MapScreen.kt:187:33 'val allNetworks: Array<(out) Network!>' is deprecated. Deprecated in Java.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/MapScreen.kt:319:59 'val Icons.Filled.Label: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Label.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/MapScreen.kt:319:84 'val Icons.Filled.LabelOff: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.LabelOff.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/map/MapScreen.kt:487:55 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/stakeout/StakeoutScreen.kt:272:57 'val Icons.Filled.Label: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Label.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/stakeout/StakeoutScreen.kt:297:57 'val Icons.Filled.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.List.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/stakeout/StakeoutScreen.kt:657:40 'val Icons.Filled.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.List.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/stakeout/StakeoutViewModel.kt:55:5 This annotation is currently applied to the value parameter only, but in the future it will also be applied to field.
+- To opt in to applying to both value parameter and field, add '-Xannotation-default-target=param-property' to your compiler arguments.
+- To keep applying to the value parameter only, use the '@param:' annotation target.
+
+See https://youtrack.jetbrains.com/issue/KT-73255 for more details.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/survey/SurveyScreen.kt:209:33 'val allNetworks: Array<(out) Network!>' is deprecated. Deprecated in Java.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/survey/SurveyScreen.kt:246:17 'fun TabRow(selectedTabIndex: Int, modifier: Modifier = ..., containerColor: Color = ..., contentColor: Color = ..., indicator: ComposableFunction1<List<TabPosition>, Unit> = ..., divider: ComposableFunction0<Unit> = ..., tabs: ComposableFunction0<Unit>): Unit' is deprecated. Replaced with PrimaryTabRow and SecondaryTabRow.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/survey/SurveyScreen.kt:360:51 'val Icons.Filled.Label: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Label.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/survey/SurveyScreen.kt:360:76 'val Icons.Filled.LabelOff: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.LabelOff.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/survey/SurveyScreen.kt:679:65 Unnecessary non-null assertion (!!) on a non-null receiver of type 'Vn2000Coordinate'.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/survey/SurveyScreen.kt:682:65 Unnecessary non-null assertion (!!) on a non-null receiver of type 'Vn2000Coordinate'.
 
 > Task :app:compileDebugJavaWithJavac
 > Task :app:processDebugJavaRes UP-TO-DATE
@@ -51,6 +66,6 @@ w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/r
 > Task :app:createDebugApkListingFileRedirect UP-TO-DATE
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 1m 59s
+BUILD SUCCESSFUL in 59s
 41 actionable tasks: 8 executed, 33 up-to-date
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
