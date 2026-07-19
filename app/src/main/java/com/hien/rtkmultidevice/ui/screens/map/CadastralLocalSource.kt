@@ -37,8 +37,13 @@ object CadastralLocalSource {
     @Volatile private var ownersCache: List<OwnerHit>? = null
 
     private fun deaccent(s: String): String {
+        // KHÔNG dùng regex \p{Mn} (một số máy Android không hỗ trợ -> crash).
         val n = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
-        return n.replace(Regex("\\p{Mn}+"), "").replace('đ', 'd').replace('Đ', 'D').lowercase()
+        val sb = StringBuilder(n.length)
+        for (c in n) {
+            if (Character.getType(c) != Character.NON_SPACING_MARK.toInt()) sb.append(c)
+        }
+        return sb.toString().replace('đ', 'd').replace('Đ', 'D').lowercase()
     }
 
     private fun ensureOwners(context: Context): List<OwnerHit> {

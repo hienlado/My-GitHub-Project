@@ -194,8 +194,10 @@ fun OwnerSearchButton(
         val hasOwners = remember { CadastralLocalSource.hasOwners(context) }
 
         LaunchedEffect(query) {
-            results = if (query.trim().length < 2) emptyList()
-                      else CadastralLocalSource.searchOwner(context, query)
+            results = try {
+                if (query.trim().length < 2) emptyList()
+                else CadastralLocalSource.searchOwner(context, query)
+            } catch (e: Throwable) { emptyList() }   // không bao giờ để lỗi tìm kiếm làm crash
         }
 
         AlertDialog(
