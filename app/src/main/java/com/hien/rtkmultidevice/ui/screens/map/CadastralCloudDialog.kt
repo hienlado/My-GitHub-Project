@@ -207,7 +207,9 @@ fun OwnerSearchButton(
                 Column {
                     if (!hasOwners) {
                         Text(
-                            "Chưa có dữ liệu chủ offline — chép sheets/_owners.json vào máy.",
+                            "Chưa có file chỉ mục chủ (_owners.json) trên máy.\n" +
+                            "Chạy lại pipeline để sinh sheets/_owners.json rồi chép cả thư mục " +
+                            "sheets/ vào bộ nhớ ứng dụng.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
@@ -220,8 +222,8 @@ fun OwnerSearchButton(
                         singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(8.dp))
-                    if (query.trim().length >= 2 && results.isEmpty())
-                        Text("Không tìm thấy.", style = MaterialTheme.typography.bodySmall)
+                    if (hasOwners && query.trim().length >= 2 && results.isEmpty())
+                        Text("Không tìm thấy tên chủ khớp.", style = MaterialTheme.typography.bodySmall)
                     // KHÔNG lồng cuộn dọc trong AlertDialog (gây crash). Dialog tự cuộn; giới hạn 25 dòng.
                     if (results.size > 25)
                         Text("Nhiều kết quả — hiển thị 25 đầu, gõ thêm để lọc.",
