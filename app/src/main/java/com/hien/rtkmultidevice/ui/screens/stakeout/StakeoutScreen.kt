@@ -293,6 +293,10 @@ fun StakeoutScreen(
                     CompactActionIcon(Icons.Default.FileOpen, "Import file điểm") {
                         importLauncher.launch(arrayOf("*/*"))
                     }
+                    // Công cụ COGO — kết quả điểm có thể gửi thẳng sang cắm mốc
+                    com.hien.rtkmultidevice.ui.screens.map.CogoButton(
+                        onStakeout = { name, n, e -> viewModel.setManualTarget(name, n, e) }
+                    )
                     if (savedPoints.isNotEmpty()) {
                         CompactActionIcon(Icons.Default.List, "Chọn điểm") { showPointPicker = true }
                         // Điều hướng loạt điểm cắm mốc: gần nhất / trước / kế

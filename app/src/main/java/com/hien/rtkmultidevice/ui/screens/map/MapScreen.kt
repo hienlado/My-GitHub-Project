@@ -286,8 +286,9 @@ fun MapScreen(
             )
 
             // ── Thanh công cụ DỌC cạnh PHẢI (MapToolRail) ─────────────
+            // TopEnd + top=52dp: nằm dưới badge lớp thửa, KHÔNG chạm nút zoom (BottomEnd).
             Surface(
-                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 6.dp),
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 52.dp, end = 6.dp),
                 color = Color(0xCC1E272E),
                 contentColor = Color.White,
                 shape = RoundedCornerShape(22.dp)
@@ -301,6 +302,8 @@ fun MapScreen(
                     WhereAmIButton(viewModel, gnss.latitude, gnss.longitude, modifier = Modifier.size(40.dp))
                     CoordLookupButton(viewModel, modifier = Modifier.size(40.dp))
                     OwnerSearchButton(viewModel, modifier = Modifier.size(40.dp))
+                    // Công cụ COGO (nghịch đảo / điểm P.vị / diện tích / giao hội)
+                    CogoButton(modifier = Modifier.size(40.dp))
                     // Bật/tắt khung tờ tổng thể
                     IconButton(onClick = {
                         showFrames = !showFrames
