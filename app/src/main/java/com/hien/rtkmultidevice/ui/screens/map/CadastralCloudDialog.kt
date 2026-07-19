@@ -11,8 +11,8 @@ import androidx.compose.foundation.layout.size
 import android.widget.Toast
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDownload
@@ -220,8 +220,13 @@ fun OwnerSearchButton(
                     Spacer(Modifier.height(8.dp))
                     if (query.trim().length >= 2 && results.isEmpty())
                         Text("Không tìm thấy.", style = MaterialTheme.typography.bodySmall)
-                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
-                        items(results) { hit ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        results.take(40).forEach { hit ->
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
