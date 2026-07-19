@@ -34,8 +34,6 @@ object CadastralLocalSource {
         val to: String, val thua: String, val dienTich: String
     )
 
-    @Volatile private var ownersCache: List<OwnerHit>? = null
-
     private fun deaccent(s: String): String {
         // KHÔNG dùng regex \p{Mn} (một số máy Android không hỗ trợ -> crash).
         val n = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
@@ -46,32 +44,47 @@ object CadastralLocalSource {
         return sb.toString().replace('đ', 'd').replace('Đ', 'D').lowercase()
     }
 
-    private fun ensureOwners(context: Context): List<OwnerHit> {
-        ownersCache?.let { return it }
-        val f = File(sheetsDir(context), "_owners.json")
-        val list = if (!f.exists()) emptyList() else try {
-            val arr = org.json.JSONArray(f.readText())
-            ArrayList<OwnerHit>(arr.length()).apply {
-                for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
-                    add(OwnerHit(
-                        o.optString("chu"), o.optString("commune"), o.optString("communeName"),
-                        o.optString("to"), o.optString("thua"), o.optString("dienTich")))
-                }
-            }
-        } catch (e: Exception) { emptyList() }
-        ownersCache = list
-        return list
-    }
-
-    /** Tìm thửa theo TÊN CHỦ (offline, không dấu, khớp chuỗi con). */
-    suspend fun searchOwner(context: Context, query: String, limit: Int = 60): List<OwnerHit> =
+    /**
+     * Tìm thửa theo TÊN CHỦ (offline, không dấu, khớp chuỗi con).
+     * _owners.json rất lớn (hàng trăm nghìn bản ghi) nên ĐỌC LUỒNG bằng JsonReader —
+     * KHÔNG nạp cả file vào RAM (tránh OOM), chỉ giữ tối đa `limit` kết quả khớp.
+     */
+    suspend fun searchOwner(context: Context, query: String, limit: Int = 50): List<OwnerHit> =
         withContext(Dispatchers.IO) {
             val q = deaccent(query.trim())
-            if (q.isBlank()) return@withContext emptyList()
-            ensureOwners(context).asSequence()
-                .filter { deaccent(it.chu).contains(q) }
-                .take(limit).toList()
+            if (q.length < 2) return@withContext emptyList()
+            val f = File(sheetsDir(context), "_owners.json")
+            if (!f.exists()) return@withContext emptyList()
+            val out = ArrayList<OwnerHit>(limit)
+            try {
+                android.util.JsonReader(
+                    java.io.InputStreamReader(java.io.FileInputStream(f), Charsets.UTF_8)
+                ).use { r ->
+                    r.beginArray()
+                    while (r.hasNext()) {
+                        var chu = ""; var commune = ""; var communeName = ""
+                        var to = ""; var thua = ""; var dienTich = ""
+                        r.beginObject()
+                        while (r.hasNext()) {
+                            when (r.nextName()) {
+                                "chu" -> chu = r.nextString()
+                                "commune" -> commune = r.nextString()
+                                "communeName" -> communeName = r.nextString()
+                                "to" -> to = r.nextString()
+                                "thua" -> thua = r.nextString()
+                                "dienTich" -> dienTich = r.nextString()
+                                else -> r.skipValue()
+                            }
+                        }
+                        r.endObject()
+                        if (chu.isNotEmpty() && deaccent(chu).contains(q)) {
+                            out.add(OwnerHit(chu, commune, communeName, to, thua, dienTich))
+                            if (out.size >= limit) break
+                        }
+                    }
+                }
+            } catch (e: Throwable) { /* trả về phần đã tìm được */ }
+            out
         }
 
     /** Tải 1 tờ từ file cục bộ -> VectorLayer (VN-2000, sẵn sàng đo/cắm mốc). */

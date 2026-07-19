@@ -449,6 +449,8 @@ private fun OsmMapView(
     vectorLayer        : VectorLayerImporter.VectorLayer? = null,
     /** Id feature cần highlight (đang được chọn) — vẽ cyan nét đậm */
     highlightFeatureId : Int? = null,
+    /** Bật/tắt nhãn hỗn số tại tâm thửa */
+    showLabels         : Boolean = true,
     /** Điểm cần căn giữa bản đồ (đi tới thửa) */
     focusPoint         : GeoPoint? = null,
     onScrolled         : () -> Unit,
@@ -721,11 +723,12 @@ private fun updateVectorOverlay(
     mapView           : MapView,
     layer             : VectorLayerImporter.VectorLayer?,
     highlightFeatureId: Int?,
+    showLabels        : Boolean,
     onFeatureTap      : (VectorLayerImporter.VectorFeature, Int) -> Unit
 ) {
-    // Cache check — chỉ vẽ lại khi layer HOẶC highlight thay đổi
+    // Cache check — chỉ vẽ lại khi layer HOẶC highlight HOẶC bật/tắt nhãn thay đổi
     // (identityHashCode: so sánh rẻ, không deep-compare hàng nghìn toạ độ)
-    val cacheKey = "vec_${System.identityHashCode(layer)}_$highlightFeatureId"
+    val cacheKey = "vec_${System.identityHashCode(layer)}_${highlightFeatureId}_$showLabels"
     if (mapView.tag == cacheKey) return
     mapView.tag = cacheKey
 
@@ -773,23 +776,25 @@ private fun updateVectorOverlay(
         })
     }
 
-    // ── Nhãn hỗn số tại tâm thửa: loại đất / (số thửa ÷ diện tích) ──
-    val labelCtx = mapView.context
-    var labelBudget = 500
-    layer.features.forEach { feature ->
-        if (labelBudget <= 0) return@forEach
-        if (feature.type != VectorLayerImporter.FeatureType.POLYGON) return@forEach
-        if (feature.soThua.isBlank()) return@forEach
-        val c = feature.centroid ?: return@forEach
-        labelBudget--
-        mapView.overlays.add(Marker(mapView).apply {
-            title = "vec_lbl_${feature.id}"
-            position = c
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-            icon = makeParcelLabelIcon(labelCtx, feature.loaiDat, feature.soThua, feature.dienTich)
-            infoWindow = null
-            setOnMarkerClickListener { _, _ -> onFeatureTap(feature, 0); true }
-        })
+    // ── Nhãn hỗn số tại tâm thửa: loại đất / (số thửa ÷ diện tích) — có thể BẬT/TẮT ──
+    if (showLabels) {
+        val labelCtx = mapView.context
+        var labelBudget = 500
+        layer.features.forEach { feature ->
+            if (labelBudget <= 0) return@forEach
+            if (feature.type != VectorLayerImporter.FeatureType.POLYGON) return@forEach
+            if (feature.soThua.isBlank()) return@forEach
+            val c = feature.centroid ?: return@forEach
+            labelBudget--
+            mapView.overlays.add(Marker(mapView).apply {
+                title = "vec_lbl_${feature.id}"
+                position = c
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                icon = makeParcelLabelIcon(labelCtx, feature.loaiDat, feature.soThua, feature.dienTich)
+                infoWindow = null
+                setOnMarkerClickListener { _, _ -> onFeatureTap(feature, 0); true }
+            })
+        }
     }
 
     // Thêm markers tappable — giới hạn tổng 1 500

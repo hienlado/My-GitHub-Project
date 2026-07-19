@@ -44,9 +44,11 @@ object HelmertTransform {
     // RY và RZ phải ĐẢO DẤU so với bảng tham số hiển thị. Trước đây sai quy ước gây lệch
     // ~0,35 m Bắc / ~0,5 m Đông tại mốc. Sau sửa: sai số khứ hồi = 0.
     private const val ARCSEC_TO_RAD = PI / (180.0 * 3600.0)
+    // HOÀN NGUYÊN (2026): mốc thật cho thấy bộ dấu gốc gần hơn -> khôi phục RY, RZ như ban đầu.
+    // Cần toạ độ mốc (WGS-84 + VN-2000 chính thức) để hiệu chỉnh chính xác thay vì đoán quy ước.
     private val RX =  0.00928836 * ARCSEC_TO_RAD   // ω0
-    private val RY =  0.01975479 * ARCSEC_TO_RAD   // ψ0  (ĐẢO DẤU: từ −0.01975479)
-    private val RZ = -0.00427372 * ARCSEC_TO_RAD   // ε0  (ĐẢO DẤU: từ +0.00427372)
+    private val RY = -0.01975479 * ARCSEC_TO_RAD   // ψ0
+    private val RZ =  0.00427372 * ARCSEC_TO_RAD   // ε0
 
     // Hệ số tỉ lệ: k = −0.252906278 ppm → M_PPM = k×10⁻⁶ (âm)
     private const val M_PPM = -0.252906278e-6

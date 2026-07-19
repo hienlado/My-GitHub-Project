@@ -13,7 +13,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.EditLocationAlt
@@ -191,13 +194,19 @@ fun OwnerSearchButton(
     if (show) {
         var query by remember { mutableStateOf("") }
         var results by remember { mutableStateOf<List<CadastralLocalSource.OwnerHit>>(emptyList()) }
+        var searching by remember { mutableStateOf(false) }
+        var searched by remember { mutableStateOf(false) }
         val hasOwners = remember { CadastralLocalSource.hasOwners(context) }
+        val scope = rememberCoroutineScope()
 
-        LaunchedEffect(query) {
-            results = try {
-                if (query.trim().length < 2) emptyList()
-                else CadastralLocalSource.searchOwner(context, query)
-            } catch (e: Throwable) { emptyList() }   // không bao giờ để lỗi tìm kiếm làm crash
+        fun doSearch() {
+            if (query.trim().length < 2 || searching) return
+            searching = true; searched = true
+            scope.launch {
+                results = try { CadastralLocalSource.searchOwner(context, query) }
+                          catch (e: Throwable) { emptyList() }
+                searching = false
+            }
         }
 
         AlertDialog(
@@ -215,14 +224,30 @@ fun OwnerSearchButton(
                         )
                         Spacer(Modifier.height(8.dp))
                     }
-                    OutlinedTextField(
-                        value = query, onValueChange = { query = it },
-                        label = { Text("Tên chủ sử dụng") },
-                        placeholder = { Text("vd: Nguyễn Văn A") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth()
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = { query = it; searched = false },
+                            label = { Text("Tên chủ sử dụng") },
+                            placeholder = { Text("vd: Nguyễn Văn A") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { doSearch() }),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Button(
+                            onClick = { doSearch() },
+                            enabled = hasOwners && query.trim().length >= 2 && !searching
+                        ) {
+                            if (searching) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            else Text("Tìm")
+                        }
+                    }
                     Spacer(Modifier.height(8.dp))
-                    if (hasOwners && query.trim().length >= 2 && results.isEmpty())
+                    if (searching)
+                        Text("Đang quét dữ liệu (có thể vài giây)…", style = MaterialTheme.typography.bodySmall)
+                    else if (searched && results.isEmpty())
                         Text("Không tìm thấy tên chủ khớp.", style = MaterialTheme.typography.bodySmall)
                     // KHÔNG lồng cuộn dọc trong AlertDialog (gây crash). Dialog tự cuộn; giới hạn 25 dòng.
                     if (results.size > 25)
