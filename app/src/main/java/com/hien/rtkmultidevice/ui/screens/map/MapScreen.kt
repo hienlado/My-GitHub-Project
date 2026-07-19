@@ -303,7 +303,12 @@ fun MapScreen(
                     CoordLookupButton(viewModel, modifier = Modifier.size(40.dp))
                     OwnerSearchButton(viewModel, modifier = Modifier.size(40.dp))
                     // Công cụ COGO (nghịch đảo / điểm P.vị / diện tích / giao hội)
-                    CogoButton(modifier = Modifier.size(40.dp))
+                    CogoButton(
+                        modifier = Modifier.size(40.dp),
+                        points = savedPoints
+                            .filter { it.northing != 0.0 || it.easting != 0.0 }
+                            .map { CogoPoint(it.pointCode, it.northing, it.easting) }
+                    )
                     // Bật/tắt khung tờ tổng thể
                     IconButton(onClick = {
                         showFrames = !showFrames
