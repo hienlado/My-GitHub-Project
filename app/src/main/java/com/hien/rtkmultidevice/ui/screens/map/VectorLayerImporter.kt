@@ -609,9 +609,12 @@ object VectorLayerImporter {
     private val H_DX =  191.90441429            // m  (dương)
     private val H_DY =   39.30318279            // m  (dương)
     private val H_DZ =  111.45032835            // m  (dương)
-    private val H_RX =  0.00928836 * (PI / 648000.0)   // ω0  (rad, dương)
-    private val H_RY = -0.01975479 * (PI / 648000.0)   // ψ0  (rad, ÂM)
-    private val H_RZ =  0.00427372 * (PI / 648000.0)   // ε0  (rad, dương)
+    // SỬA (2026): ma trận helmert() dưới đây theo dạng coordinate-frame; để KHỚP đúng
+    // pipeline (ProjNet/TOWGS84, position-vector) đã kiểm chứng, RY và RZ phải ĐẢO DẤU
+    // so với bảng tham số hiển thị (RX giữ nguyên). Đồng bộ với HelmertTransform của app RTK.
+    private val H_RX =  0.00928836 * (PI / 648000.0)   // ω0
+    private val H_RY =  0.01975479 * (PI / 648000.0)   // ψ0  (ĐẢO DẤU: từ −0.01975479)
+    private val H_RZ = -0.00427372 * (PI / 648000.0)   // ε0  (ĐẢO DẤU: từ +0.00427372)
     private val H_M  =  1.0 - 0.252906278e-6   // m = 1 + k×10⁻⁶, k=-0.252906278ppm
 
     // VN2000 → WGS84 (đảo dấu tất cả tham số)
@@ -623,7 +626,8 @@ object VectorLayerImporter {
     private val I_RZ = -H_RZ
     private val I_M  =  1.0 + 0.252906278e-6   // k=+0.252906278ppm
 
-    // Bursa-Wolf forward transform (position-vector convention)
+    // Bursa-Wolf transform — ma trận dạng coordinate-frame:
+    //   [ 1   rz  -ry ; -rz  1   rx ;  ry -rx  1 ]  (nhân với hệ số tỉ lệ m, cộng tịnh tiến)
     private fun helmert(
         dx: Double, dy: Double, dz: Double,
         rx: Double, ry: Double, rz: Double, m: Double,

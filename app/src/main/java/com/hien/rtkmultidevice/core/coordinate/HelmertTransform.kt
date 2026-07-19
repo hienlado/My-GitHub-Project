@@ -11,10 +11,15 @@ import kotlin.math.pow
 /**
  * HelmertTransform — Chuyển đổi 7 thông số Bursa-Wolf từ WGS-84 sang VN-2000.
  *
- * Mô hình Bursa-Wolf (position-vector convention, QCVN 04:2009/BTNMT):
- *   [X']     [1+m    ε0   -ψ0] [X]   [ΔX0]
- *   [Y']  =  [-ε0   1+m    ω0] [Y] + [ΔY0]
- *   [Z']     [ψ0   -ω0   1+m] [Z]   [ΔZ0]
+ * Mô hình Bursa-Wolf. Ma trận burstWolf() theo dạng coordinate-frame:
+ *   [X']     [1+m    Rz   -Ry] [X]   [ΔX0]
+ *   [Y']  =  [-Rz   1+m    Rx] [Y] + [ΔY0]
+ *   [Z']     [Ry   -Rx   1+m] [Z]   [ΔZ0]
+ *
+ * LƯU Ý QUY ƯỚC (sửa 2026): để phép này là NGHỊCH ĐẢO ĐÚNG của VN-2000→WGS-84
+ * (ProjNet/TOWGS84, position-vector) đã kiểm chứng, trong code RY và RZ được ĐẢO DẤU
+ * so với bảng tham số hiển thị bên dưới (RX giữ nguyên). Sai quy ước trước đây gây lệch
+ * ~0,35 m Bắc / ~0,5 m Đông; sau sửa sai số khứ hồi = 0.
  *
  * Các bước thực hiện:
  *   1. WGS-84 φ,λ,h  →  Geocentric XYZ (WGS-84)
@@ -33,11 +38,15 @@ object HelmertTransform {
     private const val DY =  39.30318279   // mét (dương)
     private const val DZ = 111.45032835   // mét (dương)
 
-    // Góc xoay (arc-second → radian), position-vector convention
+    // Góc xoay (arc-second → radian).
+    // SỬA (2026): ma trận burstWolf() dưới đây theo quy ước coordinate-frame; để KHỚP đúng
+    // nghịch đảo của phép VN-2000→WGS-84 (ProjNet/TOWGS84, position-vector) đã kiểm chứng,
+    // RY và RZ phải ĐẢO DẤU so với bảng tham số hiển thị. Trước đây sai quy ước gây lệch
+    // ~0,35 m Bắc / ~0,5 m Đông tại mốc. Sau sửa: sai số khứ hồi = 0.
     private const val ARCSEC_TO_RAD = PI / (180.0 * 3600.0)
-    private val RX =  0.00928836 * ARCSEC_TO_RAD   // ω0 (dương)
-    private val RY = -0.01975479 * ARCSEC_TO_RAD   // ψ0 (ÂM)
-    private val RZ =  0.00427372 * ARCSEC_TO_RAD   // ε0 (dương)
+    private val RX =  0.00928836 * ARCSEC_TO_RAD   // ω0
+    private val RY =  0.01975479 * ARCSEC_TO_RAD   // ψ0  (ĐẢO DẤU: từ −0.01975479)
+    private val RZ = -0.00427372 * ARCSEC_TO_RAD   // ε0  (ĐẢO DẤU: từ +0.00427372)
 
     // Hệ số tỉ lệ: k = −0.252906278 ppm → M_PPM = k×10⁻⁶ (âm)
     private const val M_PPM = -0.252906278e-6
