@@ -210,6 +210,10 @@ class GnssDataManager @Inject constructor(
                         Log.d(TAG, "══ fixQuality thay đổi: $prevQuality → ${gga.fixQuality}  ($label)  sats=${gga.satelliteCount}  hdop=${gga.hdop} ══")
                     }
 
+                    // Trừ CHIỀU CAO ANTEN -> cao độ mặt đất. Chỉ ảnh hưởng CAO ĐỘ (h),
+                    // gần như KHÔNG ảnh hưởng toạ độ ngang N/E (sai lệch < 1 mm).
+                    val groundAlt = gga.altitude - coordSettings.antennaHeight
+
                     // Tính VN-2000 ngay khi có vị trí mới
                     val vn2000 = if (gga.fixQuality > 0) {
                         val settings = coordSettings
@@ -217,14 +221,14 @@ class GnssDataManager @Inject constructor(
                             Vn2000Converter.convert6Deg(
                                 lat                    = gga.latitude,
                                 lon                    = gga.longitude,
-                                h                      = gga.altitude,
+                                h                      = groundAlt,
                                 centralMeridianOverride = settings.centralMeridianOverride
                             )
                         else
                             Vn2000Converter.convert(
                                 lat                    = gga.latitude,
                                 lon                    = gga.longitude,
-                                h                      = gga.altitude,
+                                h                      = groundAlt,
                                 centralMeridianOverride = settings.centralMeridianOverride
                             )
                         // Hiệu chỉnh về mốc chuẩn (tịnh tiến ΔN/ΔE) nếu được bật
@@ -246,7 +250,7 @@ class GnssDataManager @Inject constructor(
                     _gnssStatus.value = _gnssStatus.value.copy(
                         latitude        = gga.latitude,
                         longitude       = gga.longitude,
-                        altitude        = gga.altitude,
+                        altitude        = groundAlt,
                         fixQuality      = gga.fixQuality,
                         satelliteCount  = gga.satelliteCount,
                         hdop            = gga.hdop,

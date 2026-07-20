@@ -39,6 +39,7 @@ fun CoordSettingsScreen(
     val calibE          by viewModel.calibE.collectAsStateWithLifecycle()
     val calibEnabled    by viewModel.calibEnabled.collectAsStateWithLifecycle()
     val calibFeedback   by viewModel.calibFeedback.collectAsStateWithLifecycle()
+    val antennaHeight   by viewModel.antennaHeight.collectAsStateWithLifecycle()
 
     val zones = if (zoneWidth == 3) viewModel.zones3Deg else viewModel.zones6Deg
 
@@ -67,6 +68,34 @@ fun CoordSettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+
+            // ── Chiều cao anten ───────────────────────────────
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Chiều cao anten", style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Trừ khỏi cao độ đo (tâm pha anten) để về mốc mặt đất. " +
+                        "Không ảnh hưởng toạ độ ngang N/E.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    var hTxt by remember {
+                        mutableStateOf(if (antennaHeight == 0.0) "" else "%.3f".format(java.util.Locale.US, antennaHeight))
+                    }
+                    OutlinedTextField(
+                        value = hTxt,
+                        onValueChange = { s ->
+                            hTxt = s
+                            viewModel.setAntennaHeight(s.replace(',', '.').toDoubleOrNull() ?: 0.0)
+                        },
+                        label = { Text("Chiều cao anten (m) — vd 1.5") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
 
             // ── 1. Chọn múi 3° / 6° ───────────────────────────
             Card(modifier = Modifier.fillMaxWidth()) {

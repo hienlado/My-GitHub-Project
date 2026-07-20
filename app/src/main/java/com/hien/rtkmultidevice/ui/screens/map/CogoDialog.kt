@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -181,49 +182,71 @@ private fun PointTool(points: List<CogoPoint>, onStakeout: ((String, Double, Dou
     }
 }
 
-/** Diện tích + chu vi từ danh sách đỉnh (nhập tay hoặc thêm từ dữ liệu). */
+/**
+ * Diện tích + chu vi. Chọn LOẠT ĐỈNH theo THỨ TỰ BẤM (thứ tự quyết định diện tích).
+ * Menu KHÔNG đóng sau mỗi lần chọn → bấm liên tiếp nhiều đỉnh; danh sách đánh số + gỡ được.
+ * Có thể xen kẽ nhập tay bằng ô "N E" rồi bấm ＋.
+ */
 @Composable
 private fun AreaTool(points: List<CogoPoint>) {
-    var text by remember { mutableStateOf("") }
-    var out by remember { mutableStateOf("") }
+    val verts = remember { mutableStateListOf<Cogo.Pt>() }
+    val vertNames = remember { mutableStateListOf<String>() }
+    var manN by remember { mutableStateOf("") }; var manE by remember { mutableStateOf("") }
     var menu by remember { mutableStateOf(false) }
+    var out by remember { mutableStateOf("") }
+
+    fun add(name: String, p: Cogo.Pt) { verts.add(p); vertNames.add(name) }
+
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Đỉnh (mỗi dòng: N E)", style = MaterialTheme.typography.bodySmall,
+            Text("Loạt đỉnh (theo thứ tự bấm):", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
             Box {
                 IconButton(onClick = { menu = true }, enabled = points.isNotEmpty()) {
                     Icon(Icons.Default.PlaylistAdd, contentDescription = "Thêm đỉnh từ dữ liệu")
                 }
+                // Menu ở lại mở (không set menu=false trong onClick) để bấm liên tiếp.
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     points.take(300).forEach { p ->
                         DropdownMenuItem(
                             text = { Text("${p.name}  (${"%.2f".format(p.n)}, ${"%.2f".format(p.e)})", fontSize = 12.sp) },
-                            onClick = {
-                                text = if (text.isBlank()) "${fmt(p.n)} ${fmt(p.e)}"
-                                       else "$text\n${fmt(p.n)} ${fmt(p.e)}"
-                                menu = false
-                            }
+                            onClick = { add(p.name, Cogo.Pt(p.n, p.e)) }
                         )
                     }
                 }
             }
+            if (verts.isNotEmpty())
+                TextButton(onClick = { verts.clear(); vertNames.clear(); out = "" }) { Text("Xoá hết") }
         }
-        OutlinedTextField(
-            value = text, onValueChange = { text = it },
-            label = { Text("Danh sách đỉnh") },
-            modifier = Modifier.fillMaxWidth().height(130.dp)
-        )
+
+        // Danh sách đỉnh đã chọn, đánh số theo thứ tự
+        verts.forEachIndexed { i, p ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("${i + 1}. ${vertNames.getOrElse(i) { "" }}  (%.2f, %.2f)".format(p.n, p.e),
+                    fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                IconButton(onClick = { if (i < verts.size) { verts.removeAt(i); vertNames.removeAt(i) } },
+                    modifier = Modifier.width(32.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Bỏ đỉnh", modifier = Modifier.width(16.dp))
+                }
+            }
+        }
+
+        // Nhập tay 1 đỉnh rồi ＋
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            numField(manN, { manN = it }, "N", Modifier.weight(1f))
+            Spacer(Modifier.width(4.dp)); numField(manE, { manE = it }, "E", Modifier.weight(1f))
+            IconButton(onClick = {
+                val a = pd(manN); val b = pd(manE)
+                if (a != null && b != null) { add("tay", Cogo.Pt(a, b)); manN = ""; manE = "" }
+            }) { Icon(Icons.Default.PlaylistAdd, contentDescription = "Thêm đỉnh nhập tay") }
+        }
+
         Spacer(Modifier.height(8.dp))
         Button(onClick = {
-            val pts = text.lineSequence().mapNotNull { line ->
-                val parts = line.trim().split(',', ' ', '\t', ';').filter { it.isNotBlank() }
-                if (parts.size < 2) null
-                else { val a = pd(parts[0]); val b = pd(parts[1]); if (a != null && b != null) Cogo.Pt(a, b) else null }
-            }.toList()
-            out = if (pts.size < 3) "Cần ≥ 3 đỉnh hợp lệ"
+            out = if (verts.size < 3) "Cần ≥ 3 đỉnh"
             else {
-                val r = Cogo.areaPerimeter(pts)
+                val r = Cogo.areaPerimeter(verts.toList())
                 "Số đỉnh: %d\nDiện tích: %,.2f m²  (%.4f ha)\nChu vi: %,.3f m"
                     .format(r.vertexCount, r.area, r.area / 10000.0, r.perimeter)
             }

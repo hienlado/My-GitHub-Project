@@ -94,6 +94,14 @@ fun MapScreen(
 
     // Overlay khung tờ tổng thể (bật/tắt)
     val allFrames by viewModel.sheetFrames.collectAsStateWithLifecycle()
+
+    // Lớp VẼ CAD (dùng chung, độc lập) — rev để vẽ lại + nạp điểm SNAP.
+    val cadRev by com.hien.rtkmultidevice.core.cad.CadDrawingHolder.rev.collectAsStateWithLifecycle()
+    LaunchedEffect(savedPoints) {
+        com.hien.rtkmultidevice.core.cad.CadDrawingHolder.snapPoints =
+            savedPoints.filter { it.northing != 0.0 || it.easting != 0.0 }
+                .map { com.hien.rtkmultidevice.core.cad.CadVertex(it.northing, it.easting) }
+    }
     var showFrames by remember { mutableStateOf(false) }
     var showLabels by remember { mutableStateOf(true) }
 
@@ -274,6 +282,7 @@ fun MapScreen(
                 // Highlight đối tượng đang chọn (sheet đang mở) — cyan nét đậm
                 highlightFeatureId  = selectedVecFeature?.id,
                 showLabels          = showLabels,
+                cadRev              = cadRev,
                 focusPoint          = focusPoint,
                 sheetFrames         = if (showFrames) allFrames else emptyList(),
                 onSheetTap          = { commune, to -> viewModel.loadCadastralSheet(commune, to) },
@@ -330,6 +339,8 @@ fun MapScreen(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                    // Vẽ CAD (bật/tắt chế độ vẽ — panel tự hiện ở dưới)
+                    CadDrawButton(modifier = Modifier.size(40.dp))
                     // Follow GPS
                     IconButton(onClick = viewModel::toggleFollowGps, modifier = Modifier.size(40.dp)) {
                         Icon(
@@ -341,6 +352,9 @@ fun MapScreen(
                     }
                 }
             }
+
+            // ── Bảng điều khiển VẼ CAD (tự hiện khi bật chế độ vẽ) ────
+            CadDrawPanel(modifier = Modifier.align(Alignment.BottomCenter))
 
             // ── Badge lớp thửa: chạm nhãn để BẬT/TẮT hiển thị, ✕ để gỡ hẳn ──
             importedLayer?.let { layer ->
@@ -482,6 +496,8 @@ private fun OsmMapView(
     highlightFeatureId : Int? = null,
     /** Bật/tắt nhãn hỗn số tại tâm thửa */
     showLabels         : Boolean = true,
+    /** rev của CadDrawingHolder — đổi để buộc vẽ lại lớp CAD */
+    cadRev             : Int = 0,
     /** Điểm cần căn giữa bản đồ (đi tới thửa) */
     focusPoint         : GeoPoint? = null,
     onScrolled         : () -> Unit,
@@ -541,6 +557,10 @@ private fun OsmMapView(
                 updateMapOverlays(mapView, gnss, points, followGps, onScrolled, onMarkerTap)
                 updateSheetFrames(mapView, sheetFrames, onSheetTap)
                 updateVectorOverlay(mapView, vectorLayer, highlightFeatureId, showLabels, onVectorFeatureTap)
+                // Lớp VẼ CAD (độc lập) — gọi SAU updateVectorOverlay để tap-overlay CAD nằm trên cùng.
+                // (cadRev là param: đổi giá trị -> OsmMapView recompose -> update chạy lại -> vẽ lại CAD)
+                renderCadOverlay(mapView, CadastralCloudSource.CENTRAL_MERIDIAN)
+                ensureCadTapOverlay(mapView, CadastralCloudSource.CENTRAL_MERIDIAN)
             }
         )
 

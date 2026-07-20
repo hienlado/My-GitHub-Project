@@ -74,6 +74,7 @@ class AppSettings @Inject constructor(
         private val KEY_CALIB_N       = doublePreferencesKey("coord_calib_n")
         private val KEY_CALIB_E       = doublePreferencesKey("coord_calib_e")
         private val KEY_CALIB_ENABLED = booleanPreferencesKey("coord_calib_enabled")
+        private val KEY_ANTENNA_HEIGHT = doublePreferencesKey("coord_antenna_height")
 
         // ── Thu thập điểm (Survey) ──────────────────────────
         /** Bật âm báo trạng thái fix (Single/Float/Fixed) khi đo. Mặc định: bật. */
@@ -147,7 +148,8 @@ class AppSettings @Inject constructor(
             else null,
             calibN       = prefs[KEY_CALIB_N] ?: 0.0,
             calibE       = prefs[KEY_CALIB_E] ?: 0.0,
-            calibEnabled = prefs[KEY_CALIB_ENABLED] ?: false
+            calibEnabled = prefs[KEY_CALIB_ENABLED] ?: false,
+            antennaHeight = prefs[KEY_ANTENNA_HEIGHT] ?: 0.0
         )
     }
 
@@ -167,6 +169,11 @@ class AppSettings @Inject constructor(
             prefs[KEY_CALIB_E]       = deltaE
             prefs[KEY_CALIB_ENABLED] = enabled
         }
+    }
+
+    /** Lưu chiều cao anten (mét) — trừ khỏi cao độ đo để về mốc mặt đất. */
+    suspend fun saveAntennaHeight(meters: Double) {
+        context.dataStore.edit { it[KEY_ANTENNA_HEIGHT] = meters }
     }
 
     // ── Survey Settings ───────────────────────────────────────
@@ -211,6 +218,8 @@ class AppSettings @Inject constructor(
         /** Hiệu chỉnh tịnh tiến về mốc chuẩn (mét) */
         val calibN       : Double  = 0.0,
         val calibE       : Double  = 0.0,
-        val calibEnabled : Boolean = false
+        val calibEnabled : Boolean = false,
+        /** Chiều cao anten (mét) — trừ khỏi cao độ đo (tâm pha anten) để về mặt đất */
+        val antennaHeight : Double = 0.0
     )
 }

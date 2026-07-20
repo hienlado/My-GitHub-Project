@@ -29,6 +29,14 @@ class CoordSettingsViewModel @Inject constructor(
     private val _calibFeedback = MutableStateFlow<String?>(null)
     val calibFeedback: StateFlow<String?> = _calibFeedback.asStateFlow()
 
+    // ── Chiều cao anten (mét) — trừ khỏi cao độ đo ─────────────
+    private val _antennaHeight = MutableStateFlow(0.0)
+    val antennaHeight: StateFlow<Double> = _antennaHeight.asStateFlow()
+    fun setAntennaHeight(meters: Double) {
+        _antennaHeight.value = meters
+        viewModelScope.launch { appSettings.saveAntennaHeight(meters) }
+    }
+
     /** Toạ độ VN-2000 đo được hiện tại (đã gồm hiệu chỉnh nếu đang bật). */
     fun currentMeasured(): Pair<Double, Double>? =
         gnssManager.gnssStatus.value.vn2000?.let { it.northing to it.easting }
@@ -87,6 +95,7 @@ class CoordSettingsViewModel @Inject constructor(
                 _calibN.value          = settings.calibN
                 _calibE.value          = settings.calibE
                 _calibEnabled.value    = settings.calibEnabled
+                _antennaHeight.value   = settings.antennaHeight
                 if (settings.centralMeridianOverride != null) {
                     _selectedZone.value =
                         if (settings.zoneWidthDeg == 3)
