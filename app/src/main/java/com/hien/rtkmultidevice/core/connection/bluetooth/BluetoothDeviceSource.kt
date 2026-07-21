@@ -65,7 +65,9 @@ class BluetoothDeviceSource @Inject constructor(
         val RTK_DEVICE_KEYWORDS = listOf(
             "GNSS", "RTK", "T31", "T7", "F9P",
             "Reach", "EVO", "HiPer", "GR-i", "iRTK",
-            "CHC", "South", "Trimble", "Leica", "Topcon"
+            "CHC", "South", "Trimble", "Leica", "Topcon",
+            // STEC (SE10181720xxxx) — tên Bluetooth có thể là số series hoặc "STEC-..."
+            "STEC", "SE1018", "SE101"
         )
     }
 }
