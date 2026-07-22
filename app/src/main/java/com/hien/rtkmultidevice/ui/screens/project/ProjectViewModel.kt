@@ -154,6 +154,40 @@ class ProjectViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Xuất TẤT CẢ điểm ĐO thực địa từ MỌI job thành 1 CSV.
+     * CHỈ lấy điểm đo GNSS (fixQuality > 0). Loại điểm import & nhập tay (fixQuality = 0);
+     * điểm CAD không nằm trong DB nên đã tự loại.
+     */
+    fun exportAllMeasuredPoints() {
+        viewModelScope.launch {
+            try {
+                val allProjects = projectRepo.getAllProjects().first()
+                val entries = buildList {
+                    allProjects.forEach { proj ->
+                        surveyRepo.getPointsByProject(proj.id).first()
+                            .filter { it.fixQuality > 0 }
+                            .forEach { pt -> add(proj to pt) }
+                    }
+                }
+                if (entries.isEmpty()) {
+                    _error.value = "Không có điểm đo thực địa nào để xuất"
+                    return@launch
+                }
+                val csv = CsvExporter.buildAllMeasuredCsv(entries)
+                val exportDir = File(
+                    context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "exports"
+                )
+                exportDir.mkdirs()
+                val file = File(exportDir, "all_measured_points_${System.currentTimeMillis()}.csv")
+                file.writeText("﻿$csv", Charsets.UTF_8)
+                _exportedFile.value = file
+            } catch (e: Exception) {
+                _error.value = "Lỗi xuất CSV: ${e.message}"
+            }
+        }
+    }
+
     fun clearExportedFile() {
         _exportedFile.value = null
     }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -62,7 +63,13 @@ fun ProjectScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor    = MaterialTheme.colorScheme.primary,
                     titleContentColor = Color.White
-                )
+                ),
+                actions = {
+                    // Xuất TẤT CẢ điểm ĐO thực địa của MỌI job ra 1 CSV (loại import/CAD/nhập tay)
+                    IconButton(onClick = { viewModel.exportAllMeasuredPoints() }) {
+                        Icon(Icons.Default.SaveAlt, contentDescription = "Xuất tất cả điểm đo (mọi job)", tint = Color.White)
+                    }
+                }
             )
         },
         floatingActionButton = {
