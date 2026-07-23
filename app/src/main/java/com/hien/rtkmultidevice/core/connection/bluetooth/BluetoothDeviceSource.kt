@@ -67,7 +67,9 @@ class BluetoothDeviceSource @Inject constructor(
             "Reach", "EVO", "HiPer", "GR-i", "iRTK",
             "CHC", "South", "Trimble", "Leica", "Topcon",
             // STEC (SE10181720xxxx) — tên Bluetooth có thể là số series hoặc "STEC-..."
-            "STEC", "SE1018", "SE101"
+            "STEC", "SE1018", "SE101",
+            // SinoGNSS / ComNav (T30, M6 Pro...) — họ máy đang dùng
+            "Sino", "ComNav", "T30", "M6", "N5", "N6"
         )
     }
 }
