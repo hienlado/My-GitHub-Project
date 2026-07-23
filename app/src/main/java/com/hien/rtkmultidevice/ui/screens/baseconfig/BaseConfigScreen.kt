@@ -67,6 +67,29 @@ fun BaseConfigScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
 
+            // ── Thiết bị làm Base (cấu hình đi theo thiết bị) ──
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Thiết bị làm Base", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                    Row {
+                        BaseDevice.entries.forEach { dev ->
+                            val lbl = when (dev) {
+                                BaseDevice.COMNAV_T30 -> "ComNav T30"
+                                BaseDevice.STEC -> "STEC"
+                                BaseDevice.GENERIC -> "Khác"
+                            }
+                            FilterChip(
+                                selected = config.deviceType == dev.key,
+                                onClick = { viewModel.update(config.copy(deviceType = dev.key)) },
+                                label = { Text(lbl, fontSize = 12.sp) }
+                            )
+                            Spacer(Modifier.width(6.dp))
+                        }
+                    }
+                }
+            }
+
             // ── Tên trạm ──
             OutlinedTextField(
                 value = config.name, onValueChange = { viewModel.update(config.copy(name = it)) },
@@ -164,18 +187,17 @@ fun BaseConfigScreen(
                 }
             }
 
-            // ── Hướng dẫn cấu hình máy STEC ──
+            // ── Hướng dẫn đặt Base THEO THIẾT BỊ ──
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Đặt máy thu sang chế độ Base", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        "Hướng dẫn đặt Base — ${BaseDevice.from(config.deviceType).displayName}",
+                        style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary
+                    )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "1. Nối WiFi vào hotspot của máy (tên = số series) → mở trình duyệt vào http://192.168.10.1 (admin/password).\n" +
-                        "2. Working Mode = Base.\n" +
-                        "3. Nhập toạ độ base = giá trị WGS-84 ở trên (hoặc chọn Average để máy tự bình sai).\n" +
-                        "4. Datalink (đầu ra cải chính): chọn Radio / NTRIP Server / TCP tuỳ cách phát cho rover; định dạng RTCM3.\n" +
-                        "5. Chiều cao anten = giá trị đã nhập ở đây.",
-                        style = MaterialTheme.typography.bodySmall
+                        BaseDevice.from(config.deviceType).guidance(config),
+                        style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace
                     )
                 }
             }

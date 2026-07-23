@@ -84,6 +84,7 @@ class AppSettings @Inject constructor(
         private val KEY_BASE_H    = doublePreferencesKey("base_height")       // độ cao ellipsoid (m)
         private val KEY_BASE_ANT  = doublePreferencesKey("base_ant_height")   // chiều cao anten base (m)
         private val KEY_BASE_AVG  = intPreferencesKey("base_avg_seconds")
+        private val KEY_BASE_DEVICE = stringPreferencesKey("base_device")   // COMNAV_T30 / STEC / GENERIC
 
         // ── Thu thập điểm (Survey) ──────────────────────────
         /** Bật âm báo trạng thái fix (Single/Float/Fixed) khi đo. Mặc định: bật. */
@@ -194,7 +195,8 @@ class AppSettings @Inject constructor(
             lon           = prefs[KEY_BASE_LON]  ?: 0.0,
             ellHeight     = prefs[KEY_BASE_H]    ?: 0.0,
             antennaHeight = prefs[KEY_BASE_ANT]  ?: 0.0,
-            avgSeconds    = prefs[KEY_BASE_AVG]  ?: 60
+            avgSeconds    = prefs[KEY_BASE_AVG]  ?: 60,
+            deviceType    = prefs[KEY_BASE_DEVICE] ?: "COMNAV_T30"
         )
     }
 
@@ -207,6 +209,7 @@ class AppSettings @Inject constructor(
             p[KEY_BASE_H]    = c.ellHeight
             p[KEY_BASE_ANT]  = c.antennaHeight
             p[KEY_BASE_AVG]  = c.avgSeconds
+            p[KEY_BASE_DEVICE] = c.deviceType
         }
     }
 
@@ -269,6 +272,8 @@ class AppSettings @Inject constructor(
         val lon           : Double = 0.0,
         val ellHeight     : Double = 0.0,
         val antennaHeight : Double = 0.0,
-        val avgSeconds    : Int    = 60
+        val avgSeconds    : Int    = 60,
+        /** Loại máy làm base: COMNAV_T30 / STEC / GENERIC (để hướng dẫn/lệnh theo thiết bị) */
+        val deviceType    : String = "COMNAV_T30"
     )
 }
