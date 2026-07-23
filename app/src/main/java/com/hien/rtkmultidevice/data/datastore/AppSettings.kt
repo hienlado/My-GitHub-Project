@@ -76,6 +76,15 @@ class AppSettings @Inject constructor(
         private val KEY_CALIB_ENABLED = booleanPreferencesKey("coord_calib_enabled")
         private val KEY_ANTENNA_HEIGHT = doublePreferencesKey("coord_antenna_height")
 
+        // ── Máy trạm (Base) ──────────────────────────────────
+        private val KEY_BASE_MODE = intPreferencesKey("base_mode")           // 0=điểm đã biết,1=vị trí hiện tại,2=bình sai TB
+        private val KEY_BASE_NAME = stringPreferencesKey("base_name")
+        private val KEY_BASE_LAT  = doublePreferencesKey("base_lat")
+        private val KEY_BASE_LON  = doublePreferencesKey("base_lon")
+        private val KEY_BASE_H    = doublePreferencesKey("base_height")       // độ cao ellipsoid (m)
+        private val KEY_BASE_ANT  = doublePreferencesKey("base_ant_height")   // chiều cao anten base (m)
+        private val KEY_BASE_AVG  = intPreferencesKey("base_avg_seconds")
+
         // ── Thu thập điểm (Survey) ──────────────────────────
         /** Bật âm báo trạng thái fix (Single/Float/Fixed) khi đo. Mặc định: bật. */
         private val KEY_SURVEY_SOUND_ENABLED   = booleanPreferencesKey("survey_sound_enabled")
@@ -176,6 +185,31 @@ class AppSettings @Inject constructor(
         context.dataStore.edit { it[KEY_ANTENNA_HEIGHT] = meters }
     }
 
+    // ── Máy trạm (Base) ───────────────────────────────────────
+    val baseConfigFlow: Flow<BaseConfig> = context.dataStore.data.map { prefs ->
+        BaseConfig(
+            mode          = prefs[KEY_BASE_MODE] ?: 0,
+            name          = prefs[KEY_BASE_NAME] ?: "BASE",
+            lat           = prefs[KEY_BASE_LAT]  ?: 0.0,
+            lon           = prefs[KEY_BASE_LON]  ?: 0.0,
+            ellHeight     = prefs[KEY_BASE_H]    ?: 0.0,
+            antennaHeight = prefs[KEY_BASE_ANT]  ?: 0.0,
+            avgSeconds    = prefs[KEY_BASE_AVG]  ?: 60
+        )
+    }
+
+    suspend fun saveBaseConfig(c: BaseConfig) {
+        context.dataStore.edit { p ->
+            p[KEY_BASE_MODE] = c.mode
+            p[KEY_BASE_NAME] = c.name
+            p[KEY_BASE_LAT]  = c.lat
+            p[KEY_BASE_LON]  = c.lon
+            p[KEY_BASE_H]    = c.ellHeight
+            p[KEY_BASE_ANT]  = c.antennaHeight
+            p[KEY_BASE_AVG]  = c.avgSeconds
+        }
+    }
+
     // ── Survey Settings ───────────────────────────────────────
 
     /** Cài đặt thu thập điểm — âm báo fix + ràng buộc lưu điểm */
@@ -221,5 +255,20 @@ class AppSettings @Inject constructor(
         val calibEnabled : Boolean = false,
         /** Chiều cao anten (mét) — trừ khỏi cao độ đo (tâm pha anten) để về mặt đất */
         val antennaHeight : Double = 0.0
+    )
+
+    /**
+     * Cấu hình Máy trạm (Base).
+     * @param mode 0=điểm đã biết, 1=vị trí hiện tại, 2=bình sai trung bình
+     * @param lat/lon/ellHeight  Toạ độ base (WGS-84, độ cao ellipsoid)
+     */
+    data class BaseConfig(
+        val mode          : Int    = 0,
+        val name          : String = "BASE",
+        val lat           : Double = 0.0,
+        val lon           : Double = 0.0,
+        val ellHeight     : Double = 0.0,
+        val antennaHeight : Double = 0.0,
+        val avgSeconds    : Int    = 60
     )
 }

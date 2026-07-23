@@ -59,7 +59,8 @@ fun MainScreen(
     onNavigateStakeout  : (Int) -> Unit,
     onNavigateTraverse  : (Int) -> Unit = {},
     onNavigateMap       : (Int) -> Unit,
-    onNavigateCoord   : () -> Unit
+    onNavigateCoord   : () -> Unit,
+    onNavigateBase    : () -> Unit = {}
 ) {
     // Mở app vào thẳng trang chính, mặc định tab Thiết bị (index 1) để kết nối trước
     var selectedTab by remember { mutableIntStateOf(1) }
@@ -180,6 +181,7 @@ fun MainScreen(
                 onConnect        = onNavigateConnect,
                 onRover          = { if (isConnected) onNavigateGnss() else onNavigateConnect() },
                 onNtrip          = { if (isConnected) onNavigateNtrip() else onNavigateConnect() },
+                onBase           = onNavigateBase,
                 onComingSoon     = { pendingFeature.value = it }
             )
             2 -> SurveyTab(
@@ -550,6 +552,7 @@ private fun ProjectTab(
 
 @Composable
 private fun DeviceTab(
+    onBase       : () -> Unit = {},
     modifier     : Modifier,
     isConnected  : Boolean,
     onConnect    : () -> Unit,
@@ -585,7 +588,7 @@ private fun DeviceTab(
         item {
             FeatureCard("Base", "Máy trạm\nbase RTK",
                 Icons.Default.CellTower, Color(0xFF0277BD),
-                onClick = { onComingSoon("Cấu hình Base RTK") })
+                onClick = onBase)
         }
         item {
             FeatureCard("Thông tin", "Firmware\ntrạng thái",

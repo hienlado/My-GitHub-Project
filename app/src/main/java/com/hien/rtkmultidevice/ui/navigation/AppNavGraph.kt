@@ -66,7 +66,15 @@ fun AppNavGraph(navController: NavHostController) {
                 onNavigateStakeout  = { pId -> navController.navigate(Screen.Stakeout.createRoute(pId)) },
                 onNavigateTraverse  = { pId -> navController.navigate(Screen.Traverse.createRoute(pId)) },
                 onNavigateMap       = { pId -> navController.navigate(Screen.Map.createRoute(pId)) },
-                onNavigateCoord    = { navController.navigate(Screen.CoordSettings.route) }
+                onNavigateCoord    = { navController.navigate(Screen.CoordSettings.route) },
+                onNavigateBase     = { navController.navigate(Screen.BaseConfig.route) }
+            )
+        }
+
+        // ── Cấu hình Máy trạm (Base) ──────────────────
+        composable(Screen.BaseConfig.route) {
+            com.hien.rtkmultidevice.ui.screens.baseconfig.BaseConfigScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 

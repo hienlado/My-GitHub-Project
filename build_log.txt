@@ -1,4 +1,4 @@
-Starting a Gradle Daemon (subsequent builds will be faster)
+Starting a Gradle Daemon, 1 incompatible and 1 stopped Daemons could not be reused, use --status for details
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
@@ -33,12 +33,15 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:writeDebugAppMetadata UP-TO-DATE
 > Task :app:writeDebugSigningConfigVersions UP-TO-DATE
 > Task :app:kspDebugKotlin
+
 > Task :app:compileDebugKotlin
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/main/MainScreen.kt:518:31 'val Icons.Filled.ListAlt: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ListAlt.
+
 > Task :app:compileDebugJavaWithJavac
-> Task :app:processDebugJavaRes UP-TO-DATE
-> Task :app:mergeDebugJavaResource UP-TO-DATE
+> Task :app:processDebugJavaRes
 > Task :app:hiltSyncDebug
-> Task :app:hiltAggregateDepsDebug UP-TO-DATE
+> Task :app:hiltAggregateDepsDebug
+> Task :app:mergeDebugJavaResource
 > Task :app:hiltJavaCompileDebug
 > Task :app:transformDebugClassesWithAsm
 > Task :app:dexBuilderDebug
@@ -47,6 +50,6 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:createDebugApkListingFileRedirect UP-TO-DATE
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 2m 24s
-41 actionable tasks: 8 executed, 33 up-to-date
+BUILD SUCCESSFUL in 2m 50s
+41 actionable tasks: 11 executed, 30 up-to-date
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html

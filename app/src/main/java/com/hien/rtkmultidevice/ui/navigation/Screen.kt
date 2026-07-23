@@ -23,6 +23,8 @@ sealed class Screen(val route: String) {
     /** Màn hình cài đặt toạ độ VN-2000 (Phase 4) */
     data object CoordSettings : Screen("coord_settings")
 
+    data object BaseConfig : Screen("base_config")
+
     /** Màn hình danh sách / chọn dự án (Phase 5) */
     data object Project : Screen("project")
 
