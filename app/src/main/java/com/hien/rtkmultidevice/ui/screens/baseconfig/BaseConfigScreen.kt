@@ -302,32 +302,49 @@ fun BaseConfigScreen(
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            // ── Tắt nguồn máy thu qua app ──
-            if (BaseDevice.from(config.deviceType).canPowerOff) {
-                var showPowerOff by remember { mutableStateOf(false) }
+            // ── Điều khiển máy thu ──
+            if (BaseDevice.from(config.deviceType).canRestart) {
+                var showRestart by remember { mutableStateOf(false) }
                 Spacer(Modifier.height(4.dp))
+
+                // Đặt lại tính toán RTK — nhẹ, dùng khi kẹt FLOAT
                 OutlinedButton(
-                    onClick = { showPowerOff = true },
+                    onClick = { viewModel.resetRtkFilter() },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Đặt lại tính toán RTK (khi kẹt FLOAT)") }
+
+                Spacer(Modifier.height(6.dp))
+                OutlinedButton(
+                    onClick = { showRestart = true },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
-                ) { Text("Tắt nguồn máy thu") }
+                ) { Text("Khởi động lại máy thu") }
 
-                if (showPowerOff) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Máy ComNav không có lệnh TẮT NGUỒN (bộ lệnh OEM không hỗ trợ) — " +
+                    "chỉ tắt được bằng nút nguồn trên máy. Nút trên đây khởi động lại máy.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (showRestart) {
                     AlertDialog(
-                        onDismissRequest = { showPowerOff = false },
-                        title = { Text("Tắt máy thu?") },
+                        onDismissRequest = { showRestart = false },
+                        title = { Text("Khởi động lại máy thu?") },
                         text = {
-                            Text("Máy sẽ tắt nguồn và MẤT KẾT NỐI. Bạn phải bấm nút nguồn trên máy để bật lại. " +
-                                "Chỉ tắt khi đã đo xong và lưu đủ dữ liệu.")
+                            Text("Máy sẽ boot lại từ đầu và MẤT KẾT NỐI khoảng 30 giây, " +
+                                "sau đó tự hoạt động lại (phải kết nối lại trong app). " +
+                                "Dùng khi máy bị kẹt. Hãy lưu dữ liệu trước.")
                         },
                         confirmButton = {
-                            TextButton(onClick = { showPowerOff = false; viewModel.powerOffDevice() }) {
-                                Text("Tắt máy", color = MaterialTheme.colorScheme.error)
+                            TextButton(onClick = { showRestart = false; viewModel.restartDevice() }) {
+                                Text("Khởi động lại", color = MaterialTheme.colorScheme.error)
                             }
                         },
-                        dismissButton = { TextButton(onClick = { showPowerOff = false }) { Text("Huỷ") } }
+                        dismissButton = { TextButton(onClick = { showRestart = false }) { Text("Huỷ") } }
                     )
                 }
             }

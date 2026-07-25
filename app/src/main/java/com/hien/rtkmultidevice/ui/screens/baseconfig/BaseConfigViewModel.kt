@@ -104,33 +104,42 @@ class BaseConfigViewModel @Inject constructor(
     }
 
     /**
-     * TẮT NGUỒN máy thu qua lệnh (thay cho việc phải bấm nút vật lý).
-     * Gửi lần lượt các biến thể lệnh; máy hiểu lệnh nào sẽ tắt theo lệnh đó.
+     * KHỞI ĐỘNG LẠI máy thu bằng lệnh RESET — thay cho việc phải bấm nút nguồn.
+     * Hữu ích khi máy kẹt (VD cổng TCP treo, không nhận kết nối mới).
      */
-    fun powerOffDevice() {
+    fun restartDevice() {
         val device = BaseDevice.from(_config.value.deviceType)
-        val cmds = device.powerOffCommands()
-        if (cmds.isEmpty()) {
-            _feedback.value = "${device.displayName} không hỗ trợ tắt bằng lệnh — dùng nút nguồn trên máy"
-            return
-        }
+        sendRaw(device.restartCommands(),
+            emptyMsg = "${device.displayName} không hỗ trợ khởi động lại bằng lệnh — dùng nút nguồn hoặc trang web của máy",
+            okMsg    = "Đã gửi lệnh khởi động lại — máy sẽ mất kết nối ~30 giây rồi tự hoạt động lại",
+            failMsg  = "Đã gửi lệnh (kết nối ngắt — máy đang khởi động lại)")
+    }
+
+    /**
+     * Đặt lại bộ lọc RTK — dùng khi rover kẹt FLOAT mãi không lên FIXED.
+     * Không khởi động lại máy, không mất kết nối.
+     */
+    fun resetRtkFilter() {
+        val device = BaseDevice.from(_config.value.deviceType)
+        sendRaw(device.rtkResetCommands(),
+            emptyMsg = "${device.displayName} không hỗ trợ đặt lại RTK bằng lệnh",
+            okMsg    = "Đã đặt lại tính toán RTK — chờ máy dò lại lời giải",
+            failMsg  = "Không gửi được lệnh đặt lại RTK")
+    }
+
+    /** Gửi một nhóm lệnh thô xuống máy, mỗi lệnh 1 dòng CR/LF. */
+    private fun sendRaw(cmds: List<String>, emptyMsg: String, okMsg: String, failMsg: String) {
+        if (cmds.isEmpty()) { _feedback.value = emptyMsg; return }
         val conn = connectionManager.getActiveConnection()
-        if (conn == null) {
-            _feedback.value = "Chưa kết nối máy thu"
-            return
-        }
+        if (conn == null) { _feedback.value = "Chưa kết nối máy thu"; return }
         viewModelScope.launch {
             runCatching {
                 for (c in cmds) {
                     conn.sendBytes((c + "\r\n").toByteArray(Charsets.US_ASCII))
                     delay(200)
                 }
-            }.onSuccess {
-                _feedback.value = "Đã gửi lệnh tắt máy — kiểm tra đèn báo trên máy thu"
-            }.onFailure {
-                // Mất kết nối ngay sau khi gửi thường là dấu hiệu máy ĐÃ tắt
-                _feedback.value = "Đã gửi lệnh tắt (kết nối ngắt — nhiều khả năng máy đã tắt)"
-            }
+            }.onSuccess { _feedback.value = okMsg }
+                .onFailure { _feedback.value = failMsg }
         }
     }
 

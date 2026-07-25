@@ -32,30 +32,7 @@
 > Task :app:writeDebugAppMetadata UP-TO-DATE
 > Task :app:writeDebugSigningConfigVersions UP-TO-DATE
 > Task :app:kspDebugKotlin
-
 > Task :app:compileDebugKotlin
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/core/gnss/GnssDataManager.kt:53:5 This annotation is currently applied to the value parameter only, but in the future it will also be applied to field.
-- To opt in to applying to both value parameter and field, add '-Xannotation-default-target=param-property' to your compiler arguments.
-- To keep applying to the value parameter only, use the '@param:' annotation target.
-
-See https://youtrack.jetbrains.com/issue/KT-73255 for more details.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/core/gnss/GnssDataManager.kt:544:51 'static fun formatIpAddress(p0: Int): String!' is deprecated. Deprecated in Java.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/core/gnss/GnssDataManager.kt:544:70 'val connectionInfo: WifiInfo!' is deprecated. Deprecated in Java.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/core/gnss/GnssDataManager.kt:544:85 'val ipAddress: Int' is deprecated. Deprecated in Java.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/connection/ConnectionScreen.kt:195:21 'fun TabRow(selectedTabIndex: Int, modifier: Modifier = ..., containerColor: Color = ..., contentColor: Color = ..., indicator: ComposableFunction1<List<TabPosition>, Unit> = ..., divider: ComposableFunction0<Unit> = ..., tabs: ComposableFunction0<Unit>): Unit' is deprecated. Replaced with PrimaryTabRow and SecondaryTabRow.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/connection/ConnectionScreen.kt:639:27 'val Icons.Filled.BluetoothSearching: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.BluetoothSearching.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/connection/ConnectionViewModel.kt:49:5 This annotation is currently applied to the value parameter only, but in the future it will also be applied to field.
-- To opt in to applying to both value parameter and field, add '-Xannotation-default-target=param-property' to your compiler arguments.
-- To keep applying to the value parameter only, use the '@param:' annotation target.
-
-See https://youtrack.jetbrains.com/issue/KT-73255 for more details.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/ntrip/NtripConfigScreen.kt:170:61 'val Icons.Filled.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.List.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/ntrip/NtripConfigViewModel.kt:28:5 This annotation is currently applied to the value parameter only, but in the future it will also be applied to field.
-- To opt in to applying to both value parameter and field, add '-Xannotation-default-target=param-property' to your compiler arguments.
-- To keep applying to the value parameter only, use the '@param:' annotation target.
-
-See https://youtrack.jetbrains.com/issue/KT-73255 for more details.
-
 > Task :app:compileDebugJavaWithJavac
 > Task :app:processDebugJavaRes UP-TO-DATE
 > Task :app:mergeDebugJavaResource UP-TO-DATE
@@ -69,6 +46,6 @@ See https://youtrack.jetbrains.com/issue/KT-73255 for more details.
 > Task :app:createDebugApkListingFileRedirect UP-TO-DATE
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 59s
+BUILD SUCCESSFUL in 20s
 41 actionable tasks: 8 executed, 33 up-to-date
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html

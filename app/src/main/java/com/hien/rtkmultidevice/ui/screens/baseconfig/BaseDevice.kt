@@ -51,23 +51,35 @@ enum class BaseDevice(val key: String, val displayName: String, val commandBased
     }
 
     /**
-     * Lệnh TẮT NGUỒN máy thu (gửi qua Bluetooth/serial).
+     * KHỞI ĐỘNG LẠI máy thu (hardware reset, máy boot lại từ đầu).
      *
-     * Máy SinoGNSS/ComNav dùng bộ lệnh kiểu NovAtel — lệnh tắt máy khác nhau theo
-     * đời máy, nên thử lần lượt vài biến thể phổ biến. Máy sẽ nhận lệnh nó hiểu
-     * và bỏ qua lệnh lạ.
+     * Nguồn: ComNav OEM Board Reference Manual V1.5, mục 3.2.23 —
+     *   "RESET: This command performs a hardware reset. Following a RESET command,
+     *    the board initiates a cold-start boot up."
      *
-     * ⚠ KIỂM CHỨNG với tài liệu máy trước khi tin dùng ngoài thực địa.
-     * Trả rỗng nếu máy không hỗ trợ tắt bằng lệnh (phải nhấn nút nguồn).
+     * LƯU Ý QUAN TRỌNG: bộ lệnh OEM của ComNav (43 lệnh) KHÔNG có lệnh tắt nguồn
+     * (POWEROFF/SHUTDOWN không tồn tại). Nguồn điện do bo mạch điều khiển của máy
+     * quản lý, không phải bo GNSS — nên chỉ tắt được bằng nút nguồn hoặc trang web
+     * cấu hình của máy. Vì vậy ở đây dùng RESET (khởi động lại) thay cho tắt nguồn.
      */
-    fun powerOffCommands(): List<String> = when (this) {
-        COMNAV_T30 -> listOf("POWEROFF", "SHUTDOWN", "POWERCTRL OFF")
-        STEC       -> emptyList()   // STEC tắt qua trang web/nút nguồn
+    fun restartCommands(): List<String> = when (this) {
+        COMNAV_T30 -> listOf("RESET")
+        STEC       -> emptyList()   // STEC: khởi động lại qua trang web 192.168.10.1
         GENERIC    -> emptyList()
     }
 
-    /** Máy có hỗ trợ tắt nguồn bằng lệnh không. */
-    val canPowerOff: Boolean get() = powerOffCommands().isNotEmpty()
+    /** Máy có hỗ trợ khởi động lại bằng lệnh không. */
+    val canRestart: Boolean get() = restartCommands().isNotEmpty()
+
+    /**
+     * Đặt lại bộ lọc RTK (nhẹ, KHÔNG khởi động lại máy).
+     * Dùng khi rover kẹt ở FLOAT mãi không lên FIXED — buộc tính lại ambiguity.
+     * Nguồn: mục 3.2.24 — "RTKCOMMAND RESET".
+     */
+    fun rtkResetCommands(): List<String> = when (this) {
+        COMNAV_T30 -> listOf("RTKCOMMAND RESET")
+        else       -> emptyList()
+    }
 
     /** Mô tả kênh phát cải chính (datalink) — dùng chung mọi thiết bị. */
     fun datalinkGuide(c: AppSettings.BaseConfig): String = when (c.datalinkType) {
