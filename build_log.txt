@@ -39,12 +39,6 @@ w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/r
 - To keep applying to the value parameter only, use the '@param:' annotation target.
 
 See https://youtrack.jetbrains.com/issue/KT-73255 for more details.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/survey/SurveyScreen.kt:209:33 'val allNetworks: Array<(out) Network!>' is deprecated. Deprecated in Java.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/survey/SurveyScreen.kt:246:17 'fun TabRow(selectedTabIndex: Int, modifier: Modifier = ..., containerColor: Color = ..., contentColor: Color = ..., indicator: ComposableFunction1<List<TabPosition>, Unit> = ..., divider: ComposableFunction0<Unit> = ..., tabs: ComposableFunction0<Unit>): Unit' is deprecated. Replaced with PrimaryTabRow and SecondaryTabRow.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/survey/SurveyScreen.kt:360:51 'val Icons.Filled.Label: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Label.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/survey/SurveyScreen.kt:360:76 'val Icons.Filled.LabelOff: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.LabelOff.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/survey/SurveyScreen.kt:680:65 Unnecessary non-null assertion (!!) on a non-null receiver of type 'Vn2000Coordinate'.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/survey/SurveyScreen.kt:683:65 Unnecessary non-null assertion (!!) on a non-null receiver of type 'Vn2000Coordinate'.
 
 > Task :app:compileDebugJavaWithJavac
 > Task :app:processDebugJavaRes UP-TO-DATE
@@ -59,6 +53,6 @@ w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/r
 > Task :app:createDebugApkListingFileRedirect UP-TO-DATE
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 42s
+BUILD SUCCESSFUL in 15s
 41 actionable tasks: 8 executed, 33 up-to-date
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html

@@ -137,10 +137,14 @@ class BaseConfigViewModel @Inject constructor(
     val webControlAvailable: Boolean get() = WifiInfoHelper.gatewayIp(context) != null
 
     /** TẮT NGUỒN máy thu qua WiFi — tương đương nút Turn Off Receiver trên trang web. */
-    fun powerOffViaWeb() = webCall("tắt nguồn") { host -> ReceiverWebControl.powerOff(host) }
+    fun powerOffViaWeb() = webCall("tắt nguồn") { host ->
+        ReceiverWebControl.powerOff(context, host)
+    }
 
     /** KHỞI ĐỘNG LẠI máy thu qua WiFi — tương đương nút Reboot Receiver. */
-    fun rebootViaWeb() = webCall("khởi động lại") { host -> ReceiverWebControl.reboot(host) }
+    fun rebootViaWeb() = webCall("khởi động lại") { host ->
+        ReceiverWebControl.reboot(context, host)
+    }
 
     private fun webCall(action: String, block: suspend (String) -> Result<String>) {
         val host = WifiInfoHelper.gatewayIp(context)

@@ -1,5 +1,6 @@
 package com.hien.rtkmultidevice.core.network
 
+import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -69,15 +70,22 @@ object ReceiverWebControl {
      * @param user tài khoản đang đăng nhập trang web (mặc định "admin")
      */
     suspend fun send(
-        host : String,
-        cmd  : WebCommand,
-        user : String = "admin"
+        context : Context,
+        host    : String,
+        cmd     : WebCommand,
+        user    : String = "admin"
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             val ts  = System.currentTimeMillis()
             val url = URL("https://$host${cmd.path}?urlStringId=$user&_=$ts")
 
-            val conn = (url.openConnection() as HttpURLConnection).apply {
+            // QUAN TRỌNG: ép request đi qua WiFi.
+            // Khi NTRIP chạy, app đã bind process sang 4G → kết nối mặc định
+            // sẽ KHÔNG tới được địa chỉ LAN của máy thu (lỗi "failed to connect").
+            val wifi = WifiInfoHelper.wifiNetwork(context)
+            val raw  = wifi?.openConnection(url) ?: url.openConnection()
+
+            val conn = (raw as HttpURLConnection).apply {
                 if (this is HttpsURLConnection) {
                     // Máy thu dùng chứng thư tự ký cho IP nội bộ → bỏ kiểm tra
                     sslSocketFactory = insecureSslContext.socketFactory
@@ -107,8 +115,10 @@ object ReceiverWebControl {
     }
 
     /** Tắt nguồn máy thu qua WiFi. */
-    suspend fun powerOff(host: String, user: String = "admin") = send(host, POWER_OFF, user)
+    suspend fun powerOff(context: Context, host: String, user: String = "admin") =
+        send(context, host, POWER_OFF, user)
 
     /** Khởi động lại máy thu qua WiFi. */
-    suspend fun reboot(host: String, user: String = "admin") = send(host, REBOOT, user)
+    suspend fun reboot(context: Context, host: String, user: String = "admin") =
+        send(context, host, REBOOT, user)
 }

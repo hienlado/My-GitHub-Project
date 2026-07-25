@@ -42,9 +42,9 @@ object WifiInfoHelper {
      * (Cần quyền vị trí — app đã có ACCESS_FINE_LOCATION.)
      */
     fun deviceNameFromWifi(context: Context): String? = runCatching {
-        val cm = context.getSystemService(ConnectivityManager::class.java)
-        val caps = cm?.activeNetwork?.let { cm.getNetworkCapabilities(it) }
-        if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) != true) return null
+        // Dùng wifiNetwork() chứ KHÔNG dùng activeNetwork: khi NTRIP chạy, app bind
+        // process sang 4G nên activeNetwork là cellular → sẽ tưởng nhầm là không có WiFi.
+        if (wifiNetwork(context) == null) return null
 
         @Suppress("DEPRECATION")
         val raw = context.applicationContext
@@ -55,12 +55,18 @@ object WifiInfoHelper {
         if (ssid.isBlank() || ssid.contains("unknown", true)) null else ssid
     }.getOrNull()
 
-    /** IP máy thu = gateway của WiFi hiện tại (cũng là địa chỉ trang web cấu hình). */
+    /**
+     * IP máy thu = gateway của mạng WIFI (cũng là địa chỉ trang web cấu hình).
+     * Lấy theo wifiNetwork() để không bị nhầm sang mạng 4G khi app đang bind cellular.
+     */
     fun gatewayIp(context: Context): String? = runCatching {
-        val cm = context.getSystemService(ConnectivityManager::class.java)
-        val lp: LinkProperties? = cm?.getLinkProperties(cm.activeNetwork)
+        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return null
+        val net = wifiNetwork(context) ?: return null
+        val lp: LinkProperties? = cm.getLinkProperties(net)
         lp?.routes?.firstOrNull { it.isDefaultRoute && it.gateway != null }
             ?.gateway?.hostAddress
+            // Một số máy thu không khai default route → lấy địa chỉ .1 cùng dải
+            ?: phoneIp(context)?.substringBeforeLast('.')?.let { "$it.1" }
     }.getOrNull()
 
     /** IP của điện thoại trên WiFi — máy thu cần IP này để trỏ RTK Client về app. */
@@ -72,8 +78,14 @@ object WifiInfoHelper {
             ?.let { android.text.format.Formatter.formatIpAddress(it) }
     }.getOrNull()
 
-    /** Mạng WiFi hiện tại — dùng để ép socket đi qua WiFi (không qua 4G). */
-    private fun wifiNetwork(context: Context): Network? = runCatching {
+    /**
+     * Mạng WiFi hiện tại — dùng để ÉP socket đi qua WiFi (không qua 4G).
+     *
+     * BẮT BUỘC dùng khi nói chuyện với máy thu: khi NTRIP đang chạy, app đã
+     * bindProcessToNetwork(cellular) nên mọi socket mặc định đi ra 4G và
+     * KHÔNG thể tới địa chỉ LAN (192.168.x.x) của máy thu.
+     */
+    fun wifiNetwork(context: Context): Network? = runCatching {
         val cm = context.getSystemService(ConnectivityManager::class.java) ?: return null
         @Suppress("DEPRECATION")
         cm.allNetworks.firstOrNull { n ->
