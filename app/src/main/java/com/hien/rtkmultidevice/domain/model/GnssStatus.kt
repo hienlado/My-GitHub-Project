@@ -52,6 +52,9 @@ data class GnssStatus(
      */
     val vAccuracy: Double = 0.0,
 
+    /** Dung lượng pin máy thu (%). -1 = chưa đọc được (chưa nối WiFi máy / dùng Bluetooth). */
+    val batteryPercent: Int = -1,
+
     /** Thời gian UTC định dạng hh:mm:ss */
     val utcTime: String = "--:--:--",
 
@@ -154,6 +157,12 @@ data class GnssStatus(
      * Chuỗi hiển thị gọn, VD "H 0.012  V 0.021" (mét, tới mm).
      * Có dấu ~ nghĩa là ước lượng từ DOP (máy chưa bật câu GST).
      */
+    /** Có đọc được pin máy thu không. */
+    val hasBattery: Boolean get() = batteryPercent in 0..100
+
+    /** Pin yếu — cảnh báo trước khi ra thực địa xa. */
+    val batteryLow: Boolean get() = batteryPercent in 0..19
+
     val accuracyText: String
         get() {
             if (!hasFix) return "H --  V --"

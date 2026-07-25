@@ -172,9 +172,12 @@ fun FloatingGnssCard(
                         color      = fixColor
                     )
                     Text(
-                        "${gnss.satelliteCount}sv",
+                        "${gnss.satelliteCount}sv" +
+                            if (gnss.hasBattery) "  ${gnss.batteryPercent}%" else "",
                         fontSize = 9.sp,
-                        color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        color    = if (gnss.batteryLow) Color(0xFFB71C1C)
+                                   else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        fontWeight = if (gnss.batteryLow) FontWeight.Bold else FontWeight.Normal
                     )
                 }
             }

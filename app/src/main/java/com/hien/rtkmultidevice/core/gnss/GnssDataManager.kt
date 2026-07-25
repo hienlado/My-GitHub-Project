@@ -10,6 +10,8 @@ import com.hien.rtkmultidevice.core.gnss.nmea.NmeaParser
 import com.hien.rtkmultidevice.core.gnss.ntrip.NtripClient
 import com.hien.rtkmultidevice.core.gnss.ntrip.NtripConfig
 import com.hien.rtkmultidevice.core.gnss.ntrip.NtripProxyServer
+import com.hien.rtkmultidevice.core.network.ReceiverWebControl
+import com.hien.rtkmultidevice.core.network.WifiInfoHelper
 import com.hien.rtkmultidevice.data.datastore.AppSettings
 import com.hien.rtkmultidevice.domain.model.GnssStatus
 import com.hien.rtkmultidevice.domain.model.NtripState
@@ -101,6 +103,10 @@ class GnssDataManager @Inject constructor(
     private var ntripProxyJob: Job? = null
     private var ggaSenderJob: Job? = null
     private var watchdogJob: Job? = null
+    private var batteryJob: Job? = null
+
+    /** Chu kỳ đọc pin máy thu (ms). Pin đổi chậm nên không cần đọc dày. */
+    private val BATTERY_POLL_MS = 60_000L
     /** Thời điểm nhận câu NMEA gần nhất — cho watchdog phát hiện mất tín hiệu. */
     @Volatile private var lastNmeaTimeMs: Long = 0L
     private var ntripClient: NtripClient? = null
@@ -135,10 +141,37 @@ class GnssDataManager @Inject constructor(
             // trạng thái Fixed cũ làm user tưởng vẫn còn RTK.
             lastNmeaTimeMs = System.currentTimeMillis()
             startNmeaWatchdog()
+            startBatteryPolling()
 
             connection.nmeaFlow().collect { sentence ->
                 lastNmeaTimeMs = System.currentTimeMillis()
                 processNmeaSentence(sentence)
+            }
+        }
+    }
+
+    /**
+     * Đọc dung lượng pin máy thu định kỳ (xem BATTERY_POLL_MS — mặc định 60 giây).
+     *
+     * Dùng chính lệnh của trang web máy (power_status_get.cmd) qua WiFi.
+     * Pin đổi chậm nên không cần poll dày — tránh hao pin điện thoại.
+     * Chỉ chạy khi đang trong mạng WiFi của máy thu; nối Bluetooth thì bỏ qua.
+     */
+    private fun startBatteryPolling() {
+        batteryJob?.cancel()
+        batteryJob = managerScope.launch {
+            while (true) {
+                val host = WifiInfoHelper.gatewayIp(context)
+                if (host != null) {
+                    val pct = runCatching {
+                        ReceiverWebControl.fetchBattery(context, host)
+                    }.getOrNull()
+                    if (pct != null && pct != _gnssStatus.value.batteryPercent) {
+                        _gnssStatus.value = _gnssStatus.value.copy(batteryPercent = pct)
+                        Log.d(TAG, "Pin máy thu: $pct%")
+                    }
+                }
+                delay(BATTERY_POLL_MS)
             }
         }
     }

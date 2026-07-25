@@ -636,7 +636,8 @@ private fun MapMeasureTab(
         ) {
             // H/V = sai số mặt bằng / độ cao (m). Dấu ~ = máy chưa phát GST, app ước lượng.
             Text(
-                "${gnss.fixLabel}  •  ${gnss.satelliteCount} sv  •  ${gnss.accuracyText}",
+                "${gnss.fixLabel}  •  ${gnss.satelliteCount} sv  •  ${gnss.accuracyText}" +
+                    if (gnss.hasBattery) "  •  🔋${gnss.batteryPercent}%" else "",
                 modifier   = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                 color      = Color.White,
                 fontSize   = 11.sp,
@@ -1039,6 +1040,7 @@ private fun FixQualityBanner(gnss: GnssStatus) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 StatusBadge("${gnss.satelliteCount} vệ tinh")
                 StatusBadge(gnss.accuracyText)          // H/V sai số (m)
+                if (gnss.hasBattery) StatusBadge("Pin ${gnss.batteryPercent}%")
                 StatusBadge(gnss.localTime)   // UTC+7 (Hà Nội)
             }
         }
