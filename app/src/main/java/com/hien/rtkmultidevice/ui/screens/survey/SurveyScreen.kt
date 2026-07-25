@@ -634,8 +634,9 @@ private fun MapMeasureTab(
             color    = Color(android.graphics.Color.parseColor(gnss.fixColorHex)).copy(alpha = 0.9f),
             shape    = MaterialTheme.shapes.small
         ) {
+            // H/V = sai số mặt bằng / độ cao (m). Dấu ~ = máy chưa phát GST, app ước lượng.
             Text(
-                "${gnss.fixLabel}  •  ${gnss.satelliteCount} sv  •  HDOP ${"%.1f".format(gnss.hdop)}",
+                "${gnss.fixLabel}  •  ${gnss.satelliteCount} sv  •  ${gnss.accuracyText}",
                 modifier   = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                 color      = Color.White,
                 fontSize   = 11.sp,
@@ -1037,7 +1038,7 @@ private fun FixQualityBanner(gnss: GnssStatus) {
             )
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 StatusBadge("${gnss.satelliteCount} vệ tinh")
-                StatusBadge("HDOP ${"%.1f".format(gnss.hdop)}")
+                StatusBadge(gnss.accuracyText)          // H/V sai số (m)
                 StatusBadge(gnss.localTime)   // UTC+7 (Hà Nội)
             }
         }

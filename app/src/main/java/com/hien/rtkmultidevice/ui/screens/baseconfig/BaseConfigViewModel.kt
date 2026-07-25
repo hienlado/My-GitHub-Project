@@ -155,10 +155,19 @@ class BaseConfigViewModel @Inject constructor(
                 .onFailure { e ->
                     // Máy tắt/khởi động lại thường cắt kết nối ngay → coi là thành công
                     val msg = e.message.orEmpty()
-                    _feedback.value = if (msg.contains("timeout", true) ||
-                        msg.contains("reset", true) || msg.contains("closed", true)
-                    ) "Đã gửi lệnh $action (máy ngắt kết nối — nhiều khả năng đã nhận lệnh)"
-                    else "Lỗi gửi lệnh $action: $msg"
+                    _feedback.value = when {
+                        // Không nối được từ đầu → máy đang tắt hoặc đang khởi động lại
+                        msg.contains("failed to connect", true) ||
+                        msg.contains("ECONNREFUSED", true) ||
+                        msg.contains("unreachable", true) ->
+                            "Không liên lạc được với máy thu. Máy đang tắt hoặc đang khởi động lại? " +
+                            "Bật máy, chờ nối lại WiFi rồi thử lại."
+                        // Gửi được rồi mới đứt → lệnh đã tới máy
+                        msg.contains("timeout", true) || msg.contains("reset", true) ||
+                        msg.contains("closed", true) || msg.contains("EOF", true) ->
+                            "Đã gửi lệnh $action (máy ngắt kết nối — nhiều khả năng đã nhận lệnh)"
+                        else -> "Lỗi gửi lệnh $action: $msg"
+                    }
                 }
         }
     }

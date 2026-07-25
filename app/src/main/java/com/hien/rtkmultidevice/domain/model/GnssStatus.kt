@@ -150,10 +150,16 @@ data class GnssStatus(
             else -> 0.0
         }
 
-    /** Chuỗi hiển thị gọn, VD "H 0.012  V 0.021" (mm). Trả "H --  V --" khi chưa có fix. */
+    /**
+     * Chuỗi hiển thị gọn, VD "H 0.012  V 0.021" (mét, tới mm).
+     * Có dấu ~ nghĩa là ước lượng từ DOP (máy chưa bật câu GST).
+     */
     val accuracyText: String
-        get() = if (!hasFix) "H --  V --"
-                else "H %.3f  V %.3f".format(hDisplay, vDisplay)
+        get() {
+            if (!hasFix) return "H --  V --"
+            val e = if (accuracyIsMeasured) "" else "~"
+            return "H $e%.3f  V $e%.3f".format(hDisplay, vDisplay)
+        }
 
     /** Số vệ tinh đang dùng theo từng constellation */
     val usedSatelliteCount: Int get() = satellites.count { it.isUsed }
