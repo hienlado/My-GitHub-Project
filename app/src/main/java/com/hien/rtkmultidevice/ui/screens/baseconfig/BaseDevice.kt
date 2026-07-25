@@ -31,21 +31,45 @@ enum class BaseDevice(val key: String, val displayName: String, val commandBased
             2 -> "FIX AUTO"                                                    // bình sai tự động
             else -> "FIX POSITION ${d(c.lat, 9)} ${d(c.lon, 9)} ${d(c.ellHeight, 3)}"  // điểm đã biết / hiện tại
         }
-        return listOf(
-            "UNLOGALL",
-            pos,
-            "LOG COM2 RTCM1006 ONTIME 10",
-            "LOG COM2 RTCM1033 ONTIME 10",
-            "LOG COM2 RTCM1074 ONTIME 1",
-            "LOG COM2 RTCM1084 ONTIME 1",
-            "LOG COM2 RTCM1094 ONTIME 1",
-            "LOG COM2 RTCM1124 ONTIME 1",
-            "SAVECONFIG"
+        // Cổng phát RTCM theo datalink: Radio/Ngoài → cổng nối datalink (outPort);
+        // NTRIP Server → cấu hình đẩy lên caster (không qua cổng serial).
+        val port = c.outPort.ifBlank { "COM2" }
+        val cmds = mutableListOf("UNLOGALL", pos)
+        cmds += listOf(
+            "LOG $port RTCM1006 ONTIME 10",
+            "LOG $port RTCM1033 ONTIME 10",
+            "LOG $port RTCM1074 ONTIME 1",
+            "LOG $port RTCM1084 ONTIME 1",
+            "LOG $port RTCM1094 ONTIME 1",
+            "LOG $port RTCM1124 ONTIME 1"
         )
+        if (c.datalinkType == 0) {  // NTRIP Server — đẩy RTCM từ port lên caster
+            cmds += "NTRIPSERVER ${c.ntripHost} ${c.ntripPort} ${c.ntripMount} ${c.ntripPassword} $port"
+        }
+        cmds += "SAVECONFIG"
+        return cmds
     }
 
-    /** Hướng dẫn cấu hình base cho từng loại máy. */
-    fun guidance(c: AppSettings.BaseConfig): String = when (this) {
+    /** Mô tả kênh phát cải chính (datalink) — dùng chung mọi thiết bị. */
+    fun datalinkGuide(c: AppSettings.BaseConfig): String = when (c.datalinkType) {
+        0 -> "Kênh phát: NTRIP Server (đẩy RTCM lên caster).\n" +
+             "  • Caster: ${c.ntripHost.ifBlank { "<host>" }}:${c.ntripPort}\n" +
+             "  • Mountpoint: ${c.ntripMount.ifBlank { "<mount>" }}   Password: ${if (c.ntripPassword.isBlank()) "<pass>" else "••••"}\n" +
+             "  • Cần Internet (SIM base hoặc chia sẻ từ điện thoại).\n" +
+             "  • Rover lấy CÙNG host/port/mountpoint này."
+        1 -> "Kênh phát: Radio UHF — base & rover PHẢI trùng 3 thông số:\n" +
+             "  • Tần số/kênh: ${c.radioFreq.ifBlank { "<MHz>" }}\n" +
+             "  • Protocol: ${c.radioProtocol}\n" +
+             "  • Air baud: ${c.radioBaud}\n" +
+             "  • Không cần Internet; đặt anten cao/điểm cao để tăng tầm."
+        else -> "Kênh phát: Ngoài/khác — cấu hình datalink trực tiếp trên máy/điện đài."
+    }
+
+    /** Hướng dẫn cấu hình base cho từng loại máy (kèm phần datalink). */
+    fun guidance(c: AppSettings.BaseConfig): String =
+        deviceGuidance(c) + "\n\n── DATALINK ──\n" + datalinkGuide(c)
+
+    private fun deviceGuidance(c: AppSettings.BaseConfig): String = when (this) {
         COMNAV_T30 ->
             "ComNav T30 dùng bộ lệnh SinoGNSS (kiểu NovAtel). Gửi các lệnh dưới qua cổng lệnh " +
             "(Bluetooth/serial), mỗi lệnh 1 dòng, kết thúc bằng CR/LF:\n\n" +

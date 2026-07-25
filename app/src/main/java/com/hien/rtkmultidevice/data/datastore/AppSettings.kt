@@ -85,6 +85,15 @@ class AppSettings @Inject constructor(
         private val KEY_BASE_ANT  = doublePreferencesKey("base_ant_height")   // chiều cao anten base (m)
         private val KEY_BASE_AVG  = intPreferencesKey("base_avg_seconds")
         private val KEY_BASE_DEVICE = stringPreferencesKey("base_device")   // COMNAV_T30 / STEC / GENERIC
+        private val KEY_BASE_DL     = intPreferencesKey("base_datalink")     // 0=NTRIP Server,1=Radio,2=Ngoài
+        private val KEY_BASE_OUTPORT= stringPreferencesKey("base_out_port")  // COM2...
+        private val KEY_BASE_NHOST  = stringPreferencesKey("base_ntrip_host")
+        private val KEY_BASE_NPORT  = intPreferencesKey("base_ntrip_port")
+        private val KEY_BASE_NMOUNT = stringPreferencesKey("base_ntrip_mount")
+        private val KEY_BASE_NPASS  = stringPreferencesKey("base_ntrip_pass")
+        private val KEY_BASE_RPROTO = stringPreferencesKey("base_radio_proto")
+        private val KEY_BASE_RFREQ  = stringPreferencesKey("base_radio_freq")
+        private val KEY_BASE_RBAUD  = intPreferencesKey("base_radio_baud")
 
         // ── Thu thập điểm (Survey) ──────────────────────────
         /** Bật âm báo trạng thái fix (Single/Float/Fixed) khi đo. Mặc định: bật. */
@@ -196,7 +205,16 @@ class AppSettings @Inject constructor(
             ellHeight     = prefs[KEY_BASE_H]    ?: 0.0,
             antennaHeight = prefs[KEY_BASE_ANT]  ?: 0.0,
             avgSeconds    = prefs[KEY_BASE_AVG]  ?: 60,
-            deviceType    = prefs[KEY_BASE_DEVICE] ?: "COMNAV_T30"
+            deviceType    = prefs[KEY_BASE_DEVICE] ?: "COMNAV_T30",
+            datalinkType  = prefs[KEY_BASE_DL]     ?: 0,
+            outPort       = prefs[KEY_BASE_OUTPORT]?: "COM2",
+            ntripHost     = prefs[KEY_BASE_NHOST]  ?: "",
+            ntripPort     = prefs[KEY_BASE_NPORT]  ?: 2101,
+            ntripMount    = prefs[KEY_BASE_NMOUNT] ?: "",
+            ntripPassword = prefs[KEY_BASE_NPASS]  ?: "",
+            radioProtocol = prefs[KEY_BASE_RPROTO] ?: "TransparentEOT",
+            radioFreq     = prefs[KEY_BASE_RFREQ]  ?: "",
+            radioBaud     = prefs[KEY_BASE_RBAUD]  ?: 9600
         )
     }
 
@@ -210,6 +228,15 @@ class AppSettings @Inject constructor(
             p[KEY_BASE_ANT]  = c.antennaHeight
             p[KEY_BASE_AVG]  = c.avgSeconds
             p[KEY_BASE_DEVICE] = c.deviceType
+            p[KEY_BASE_DL]      = c.datalinkType
+            p[KEY_BASE_OUTPORT] = c.outPort
+            p[KEY_BASE_NHOST]   = c.ntripHost
+            p[KEY_BASE_NPORT]   = c.ntripPort
+            p[KEY_BASE_NMOUNT]  = c.ntripMount
+            p[KEY_BASE_NPASS]   = c.ntripPassword
+            p[KEY_BASE_RPROTO]  = c.radioProtocol
+            p[KEY_BASE_RFREQ]   = c.radioFreq
+            p[KEY_BASE_RBAUD]   = c.radioBaud
         }
     }
 
@@ -274,6 +301,20 @@ class AppSettings @Inject constructor(
         val antennaHeight : Double = 0.0,
         val avgSeconds    : Int    = 60,
         /** Loại máy làm base: COMNAV_T30 / STEC / GENERIC (để hướng dẫn/lệnh theo thiết bị) */
-        val deviceType    : String = "COMNAV_T30"
+        val deviceType    : String = "COMNAV_T30",
+        // ── Datalink: cách base phát cải chính ──
+        /** 0=NTRIP Server, 1=Radio UHF, 2=Ngoài/khác */
+        val datalinkType  : Int    = 0,
+        /** Cổng máy phát RTCM (radio/serial), vd COM2 — dùng trong lệnh LOG của ComNav */
+        val outPort       : String = "COM2",
+        // NTRIP Server (base đẩy RTCM lên caster)
+        val ntripHost     : String = "",
+        val ntripPort     : Int    = 2101,
+        val ntripMount    : String = "",
+        val ntripPassword : String = "",
+        // Radio UHF (base & rover PHẢI trùng 3 thông số này)
+        val radioProtocol : String = "TransparentEOT",
+        val radioFreq     : String = "",      // tần số/kênh (MHz)
+        val radioBaud     : Int    = 9600     // air baud
     )
 }

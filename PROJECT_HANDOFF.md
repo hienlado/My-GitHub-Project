@@ -76,7 +76,7 @@ ui/screens/{connection,ntrip,gnss,coordsettings,traverse,main}
 Asset: `app/src/main/assets/cadastral_convert.json` — ánh xạ **60 xã cũ → 24 đơn vị mới** (tiền tố `xa*`/`phuong*`), có composite key cho xã tách (Phước Hưng).
 
 ### 3.3 Tính năng đã làm trong các session gần đây
-- **Cấu hình Base (mới, device-oriented):** `AppSettings.BaseConfig(mode, name, lat, lon, ellHeight, antennaHeight, avgSeconds, deviceType="COMNAV_T30")`. `BaseDevice` enum (COMNAV_T30/STEC/GENERIC) sinh **hướng dẫn + chuỗi lệnh** theo máy. 3 chế độ vị trí: Điểm đã biết (nhập VN-2000→WGS-84 qua `inverseVn2000`) / Vị trí hiện tại (capture từ fix) / Bình sai TB. Vào từ tab Thiết bị → thẻ Base (`Screen.BaseConfig`).
+- **Cấu hình Base (device-oriented + datalink + gửi lệnh):** `AppSettings.BaseConfig` gồm vị trí (`mode/name/lat/lon/ellHeight/antennaHeight/avgSeconds`), `deviceType` (COMNAV_T30/STEC/GENERIC), và **datalink** (`datalinkType` 0=NTRIP Server/1=Radio/2=Ngoài, `outPort`, NTRIP `ntripHost/ntripPort/ntripMount/ntripPassword`, Radio `radioProtocol/radioFreq/radioBaud`). `BaseDevice` sinh **hướng dẫn + chuỗi lệnh** theo máy & datalink (`commands()` dùng `outPort` động, thêm dòng `NTRIPSERVER...` khi NTRIP; `datalinkGuide()`). 3 chế độ vị trí: Điểm đã biết (VN-2000→WGS-84 qua `inverseVn2000`) / Vị trí hiện tại / Bình sai TB. **Nút "Gửi lệnh cấu hình xuống máy"** (chỉ máy `commandBased` như T30): `BaseConfigViewModel.sendCommandsToDevice()` gửi từng dòng CR/LF qua `ConnectionManager.getActiveConnection().sendBytes()`, cách 150ms, có hộp xác nhận preview lệnh. Vào từ tab Thiết bị → thẻ Base (`Screen.BaseConfig`).
 - **Chiều cao anten:** thêm `antennaHeight` vào `CoordSettings`; `GnssDataManager` dùng `groundAlt = gga.altitude - antennaHeight`.
 - **Datum VN-2000↔WGS-84:** 7-param Helmert trong `HelmertTransform` + `VectorLayerImporter`. **Đã REVERT về hệ số gốc** (lần lật dấu RY/RZ làm sai số ngoài thực địa TĂNG 0.5→1.0m). Kết luận: ~0.5m là **sai số dư cố hữu của 7-param**, xử lý bằng chức năng **"Hiệu chỉnh về mốc chuẩn"** của app (localization/site calibration: `calibN/calibE` cộng vào kết quả), KHÔNG phải bug code.
 - **Offline:** `CadastralLocalSource` đọc tờ + chỉ mục chủ sử dụng từ bộ nhớ máy, chỉ file `DC*.mdb`; tìm chủ dùng **streaming `android.util.JsonReader`** (file `_owners.json` ~60MB/641k bản ghi → tránh OOM), bỏ dấu bằng `Character.getType()` (không dùng `\p{Mn}`).
@@ -147,7 +147,7 @@ Dữ liệu ra: `data/output/_batch_hashes.json`, `_sheet_index.json`, `sheets/_
 
 - [ ] **STEC device config:** vào web `192.168.10.1` đặt Working Mode (Base/Rover) + datalink=external để máy nhận RTCM đã bơm vào (hiện vẫn SINGLE).
 - [ ] **Chỉ báo trạng thái RTK** (age of correction, baseline, HDOP) — để dành session sau.
-- [ ] **Nút "Gửi lệnh cấu hình Base" cho ComNav T30** — khi đã kiểm chứng cú pháp lệnh với tài liệu T30 (app đã có đường ghi RTCM/serial nên bổ sung được).
+- [x] ~~Nút "Gửi lệnh cấu hình Base" cho ComNav T30~~ — ĐÃ LÀM (`sendCommandsToDevice()`). **Còn lại: KIỂM CHỨNG cú pháp lệnh SinoGNSS (nhất là `NTRIPSERVER`, cổng `LOG COMx`) với tài liệu T30 thật** trước khi tin dùng ngoài thực địa.
 - [ ] **Xoay app API key** `rtk-cadastral-2026-x7k9`.
 - [ ] **Người dùng cần BUILD lại app** để kiểm chứng các thay đổi chưa compile (Base config, antenna height, CSV export, CAD, COGO...).
 - [ ] (NTRIP sản xuất) dựng **caster riêng VPS tại VN** hoặc dùng **VNGEONET**; RTK2go chỉ để test.

@@ -1,11 +1,19 @@
 package com.hien.rtkmultidevice.core.gnss.ntrip
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.util.Base64
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.Socket
 import java.nio.charset.StandardCharsets
+import kotlin.coroutines.resume
 
 // ═══════════════════════════════════════════════════════════
 // NtripMountpointEntry — Thông tin một mountpoint trong sourcetable
@@ -109,6 +117,57 @@ object NtripSourcetableFetcher {
     private const val TIMEOUT_MS = 10_000
 
     /**
+     * Tạo socket tới caster, ƯU TIÊN mạng di động (giống NtripClient.createCellularSocket).
+     *
+     * Lý do: khi điện thoại nối WiFi hotspot của đầu thu RTK (không có internet),
+     * Android route mọi socket mặc định qua WiFi → connect timeout 10s.
+     * requestNetwork(TRANSPORT_CELLULAR) + socketFactory ép đi qua 4G/5G.
+     *
+     * Fallback: không có cellular → dùng socket mặc định (WiFi/Ethernet).
+     */
+    private suspend fun createSocketPreferCellular(
+        appContext: Context?, host: String, port: Int
+    ): Socket {
+        val cm = appContext?.getSystemService(ConnectivityManager::class.java)
+            ?: return socketDefault(host, port)
+
+        // Nếu mạng đang dùng đã có internet thật (validated) → dùng luôn, khỏi ép cellular
+        val activeOk = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
+            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+        if (activeOk) return socketDefault(host, port)
+
+        val cellular: Network? = withTimeoutOrNull(TIMEOUT_MS.toLong()) {
+            suspendCancellableCoroutine { cont ->
+                val request = NetworkRequest.Builder()
+                    .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build()
+                val cb = object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) { if (cont.isActive) cont.resume(network) }
+                    override fun onUnavailable() { if (cont.isActive) cont.resume(null) }
+                }
+                runCatching { cm.requestNetwork(request, cb, TIMEOUT_MS) }
+                cont.invokeOnCancellation { runCatching { cm.unregisterNetworkCallback(cb) } }
+            }
+        }
+
+        return if (cellular != null) {
+            Log.d(TAG, "Sourcetable qua cellular (4G/5G) — bỏ qua WiFi không internet")
+            runCatching { cellular.socketFactory.createSocket(host, port) as Socket }
+                .getOrElse {
+                    Log.w(TAG, "cellular socketFactory lỗi (${it.message}) → socket mặc định")
+                    socketDefault(host, port)
+                }
+        } else {
+            Log.d(TAG, "Không có cellular → socket mặc định")
+            socketDefault(host, port)
+        }
+    }
+
+    private fun socketDefault(host: String, port: Int): Socket =
+        Socket().apply { connect(java.net.InetSocketAddress(host, port), TIMEOUT_MS) }
+
+    /**
      * Tải sourcetable và trả về danh sách mountpoint.
      * Mountpoint có Datum Transformation (1021-1027) sẽ được đặt đầu danh sách.
      *
@@ -118,11 +177,16 @@ object NtripSourcetableFetcher {
         host     : String,
         port     : Int,
         username : String = "",
-        password : String = ""
+        password : String = "",
+        /**
+         * Context để ưu tiên mạng di động (4G/5G).
+         * BẮT BUỘC khi điện thoại đang nối WiFi hotspot của đầu thu (không có internet) —
+         * nếu null, socket đi qua WiFi và sẽ TIMEOUT giống NtripClient trước đây.
+         */
+        appContext: Context? = null
     ): Result<List<NtripMountpointEntry>> = withContext(Dispatchers.IO) {
         runCatching {
-            val socket = Socket().apply {
-                connect(java.net.InetSocketAddress(host.trim(), port), TIMEOUT_MS)
+            val socket = createSocketPreferCellular(appContext, host.trim(), port).apply {
                 soTimeout = TIMEOUT_MS
             }
 

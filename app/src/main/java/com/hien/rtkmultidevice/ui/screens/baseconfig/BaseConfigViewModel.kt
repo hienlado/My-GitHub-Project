@@ -2,11 +2,13 @@ package com.hien.rtkmultidevice.ui.screens.baseconfig
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.hien.rtkmultidevice.core.connection.ConnectionManager
 import com.hien.rtkmultidevice.core.gnss.GnssDataManager
 import com.hien.rtkmultidevice.data.datastore.AppSettings
 import com.hien.rtkmultidevice.domain.model.GnssStatus
 import com.hien.rtkmultidevice.ui.screens.map.VectorLayerImporter
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,7 +23,8 @@ import javax.inject.Inject
 @HiltViewModel
 class BaseConfigViewModel @Inject constructor(
     private val appSettings: AppSettings,
-    private val gnssManager: GnssDataManager
+    private val gnssManager: GnssDataManager,
+    private val connectionManager: ConnectionManager
 ) : ViewModel() {
 
     val gnss: StateFlow<GnssStatus> = gnssManager.gnssStatus
@@ -62,6 +65,42 @@ class BaseConfigViewModel @Inject constructor(
         if (geo == null) { _feedback.value = "Toạ độ VN-2000 không hợp lệ"; return }
         _config.value = _config.value.copy(lat = geo.latitude, lon = geo.longitude, ellHeight = h)
         _feedback.value = "Đã đặt toạ độ base từ VN-2000"
+    }
+
+    /** Chuỗi lệnh sẽ gửi (để hiển thị/preview). Rỗng nếu thiết bị không dùng lệnh. */
+    fun previewCommands(): List<String> = BaseDevice.from(_config.value.deviceType).commands(_config.value)
+
+    /**
+     * Gửi chuỗi lệnh cấu hình xuống thiết bị đang kết nối (Bluetooth/TCP).
+     * Mỗi lệnh 1 dòng, kết thúc CR/LF, cách nhau 150ms để máy kịp xử lý.
+     * CẢNH BÁO: lệnh có SAVECONFIG sẽ ghi vào máy — chỉ gửi khi chắc chắn.
+     */
+    fun sendCommandsToDevice() {
+        val cfg = _config.value
+        val device = BaseDevice.from(cfg.deviceType)
+        val cmds = device.commands(cfg)
+        if (cmds.isEmpty()) {
+            _feedback.value = "Thiết bị ${device.displayName} không dùng lệnh — cấu hình theo hướng dẫn"
+            return
+        }
+        val conn = connectionManager.getActiveConnection()
+        if (conn == null) {
+            _feedback.value = "Chưa kết nối thiết bị — vào Kết nối để nối máy trước"
+            return
+        }
+        viewModelScope.launch {
+            var ok = 0
+            try {
+                for (c in cmds) {
+                    conn.sendBytes((c + "\r\n").toByteArray(Charsets.US_ASCII))
+                    ok++
+                    delay(150)
+                }
+                _feedback.value = "Đã gửi $ok/${cmds.size} lệnh xuống ${device.displayName}"
+            } catch (t: Throwable) {
+                _feedback.value = "Lỗi gửi lệnh sau $ok/${cmds.size} dòng: ${t.message}"
+            }
+        }
     }
 
     /** WGS-84 hiện lưu -> VN-2000 (N,E) để hiển thị. null nếu chưa có toạ độ. */

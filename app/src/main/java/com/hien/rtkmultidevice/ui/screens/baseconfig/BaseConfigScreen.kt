@@ -187,6 +187,71 @@ fun BaseConfigScreen(
                 }
             }
 
+            // ── Datalink: cách base phát cải chính ──
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Kênh phát cải chính (Datalink)", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                    Row {
+                        listOf("NTRIP Server", "Radio UHF", "Ngoài").forEachIndexed { i, name ->
+                            FilterChip(selected = config.datalinkType == i, onClick = { viewModel.update(config.copy(datalinkType = i)) },
+                                label = { Text(name, fontSize = 12.sp) })
+                            if (i < 2) Spacer(Modifier.width(6.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    when (config.datalinkType) {
+                        0 -> {   // NTRIP Server — base đẩy RTCM lên caster
+                            Text("Base đẩy RTCM lên caster; rover lấy CÙNG host/port/mountpoint.",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(6.dp))
+                            Row {
+                                OutlinedTextField(config.ntripHost, { viewModel.update(config.copy(ntripHost = it)) },
+                                    label = { Text("Caster host") }, singleLine = true, modifier = Modifier.weight(2f))
+                                Spacer(Modifier.width(6.dp))
+                                OutlinedTextField(config.ntripPort.toString(),
+                                    { viewModel.update(config.copy(ntripPort = it.toIntOrNull() ?: config.ntripPort)) },
+                                    label = { Text("Port") }, singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedTextField(config.ntripMount, { viewModel.update(config.copy(ntripMount = it)) },
+                                label = { Text("Mountpoint") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedTextField(config.ntripPassword, { viewModel.update(config.copy(ntripPassword = it)) },
+                                label = { Text("Password (đẩy lên caster)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        }
+                        1 -> {   // Radio UHF — base & rover phải trùng
+                            Text("Base & rover PHẢI trùng: tần số + protocol + air baud.",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(6.dp))
+                            Row {
+                                OutlinedTextField(config.radioFreq, { viewModel.update(config.copy(radioFreq = it)) },
+                                    label = { Text("Tần số/kênh (MHz)") }, singleLine = true, modifier = Modifier.weight(1f))
+                                Spacer(Modifier.width(6.dp))
+                                OutlinedTextField(config.radioBaud.toString(),
+                                    { viewModel.update(config.copy(radioBaud = it.toIntOrNull() ?: config.radioBaud)) },
+                                    label = { Text("Air baud") }, singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedTextField(config.radioProtocol, { viewModel.update(config.copy(radioProtocol = it)) },
+                                label = { Text("Protocol (TransparentEOT/TrimTalk450S/SATEL...)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        }
+                        else -> {
+                            Text("Cấu hình datalink trực tiếp trên máy/điện đài.",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    // Cổng phát RTCM (dùng trong lệnh LOG của ComNav T30)
+                    if (config.deviceType == BaseDevice.COMNAV_T30.key && config.datalinkType != 0) {
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(config.outPort, { viewModel.update(config.copy(outPort = it)) },
+                            label = { Text("Cổng phát RTCM (vd COM2)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            }
+
             // ── Hướng dẫn đặt Base THEO THIẾT BỊ ──
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
@@ -204,6 +269,37 @@ fun BaseConfigScreen(
 
             Button(onClick = { viewModel.save() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Lưu cấu hình Base", fontWeight = FontWeight.SemiBold)
+            }
+
+            // ── Gửi lệnh xuống máy (chỉ máy dùng lệnh, vd ComNav T30) ──
+            if (BaseDevice.from(config.deviceType).commandBased) {
+                var showSend by remember { mutableStateOf(false) }
+                OutlinedButton(onClick = { showSend = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Gửi lệnh cấu hình xuống máy (Bluetooth/TCP)")
+                }
+                if (showSend) {
+                    val cmds = viewModel.previewCommands()
+                    AlertDialog(
+                        onDismissRequest = { showSend = false },
+                        title = { Text("Gửi lệnh xuống ${BaseDevice.from(config.deviceType).displayName}?") },
+                        text = {
+                            Column {
+                                Text("Các lệnh sẽ gửi qua kết nối đang mở (mỗi dòng CR/LF). " +
+                                    "Lệnh SAVECONFIG sẽ GHI vào máy. Hãy chắc đã kết nối đúng máy Base.",
+                                    style = MaterialTheme.typography.bodySmall)
+                                Spacer(Modifier.height(8.dp))
+                                cmds.forEach { Text(it, fontFamily = FontFamily.Monospace, fontSize = 11.sp) }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showSend = false; viewModel.sendCommandsToDevice() }) { Text("Gửi") }
+                        },
+                        dismissButton = { TextButton(onClick = { showSend = false }) { Text("Huỷ") } }
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text("Lưu ý: kiểm chứng cú pháp lệnh với tài liệu máy trước khi gửi.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Spacer(Modifier.height(24.dp))
         }
