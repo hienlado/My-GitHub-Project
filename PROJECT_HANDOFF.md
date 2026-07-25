@@ -85,6 +85,7 @@ Asset: `app/src/main/assets/cadastral_convert.json` — ánh xạ **60 xã cũ �
 - **Xuất CSV:** `CsvExporter.buildAllMeasuredCsv()` + `ProjectViewModel.exportAllMeasuredPoints()` — gộp **tất cả điểm ĐO GNSS thật** từ mọi job (lọc `fixQuality > 0`, loại điểm import/CAD/thủ công). Nút SaveAlt trên `ProjectScreen`.
 - **Bluetooth keywords:** `RTK_DEVICE_KEYWORDS` đã thêm STEC (`STEC/SE1018/SE101`) và SinoGNSS/ComNav (`Sino/ComNav/T30/M6/N5/N6`).
 - **NTRIP:** `NtripClient` (rover lấy RTCM), `NtripProxyServer` (điện thoại làm caster nội bộ cho máy nối WiFi).
+- **Kết nối 1 chạm theo TÊN MÁY (mới):** `core/network/WifiInfoHelper.kt` — lấy **SSID làm tên máy thu** (VD `GNSS-3366525`), `gatewayIp()` = địa chỉ máy, `findOpenPort()` tự dò cổng (9901/2000/6000/8000/9000/8080/1958, ưu tiên cổng đã dùng lần trước, socket ép qua WiFi). `ConnectionViewModel.quickConnectWifi()` + `wifiDeviceName`; thiết bị TCP lưu tên = tên máy (không còn "TCP 192.168.1.1"). UI: `QuickConnectCard` ở đầu màn Kết nối, thẻ đã lưu chỉ hiện tên + "WiFi · đã lưu", IP/port nằm trong mục **Nâng cao thu gọn**. `friendlyTcpError()` đổi ECONNREFUSED/timeout thành câu tiếng Việt dễ hiểu.
 
 ### 3.4 File build/tiện ích (root)
 `build_deploy.bat`, `kiem_loi.bat` (bắt lỗi), `logcat_save.bat`, `Git_push_tudong.bat`, `di_chuyen_sang_D.bat`, `PROJECT_PLAN.md`.

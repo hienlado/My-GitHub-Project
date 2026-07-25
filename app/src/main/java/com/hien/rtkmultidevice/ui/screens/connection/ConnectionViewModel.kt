@@ -11,6 +11,7 @@ import com.hien.rtkmultidevice.core.connection.bluetooth.BluetoothDeviceSource
 import com.hien.rtkmultidevice.core.connection.tcp.TcpConnectionImpl
 import com.hien.rtkmultidevice.core.gnss.GnssDataManager
 import com.hien.rtkmultidevice.core.gnss.NmeaVerifier
+import com.hien.rtkmultidevice.core.network.WifiInfoHelper
 import com.hien.rtkmultidevice.core.permission.BluetoothPermissionState
 import com.hien.rtkmultidevice.core.permission.PermissionManager
 import com.hien.rtkmultidevice.domain.model.DeviceInfo
@@ -89,12 +90,65 @@ class ConnectionViewModel @Inject constructor(
     private val _tcpPort = MutableStateFlow("2000")
     val tcpPort: StateFlow<String> = _tcpPort.asStateFlow()
 
+    // ── Kết nối nhanh qua WiFi (không cần nhập IP/port) ──────
+    /** Tên máy thu = tên WiFi đang nối (VD "GNSS-3366525"). null nếu không ở WiFi máy thu. */
+    private val _wifiDeviceName = MutableStateFlow<String?>(null)
+    val wifiDeviceName: StateFlow<String?> = _wifiDeviceName.asStateFlow()
+
+    /** Làm mới tên máy thu — gọi khi vào màn hình Kết nối. */
+    fun refreshWifiDevice() {
+        _wifiDeviceName.value = WifiInfoHelper.deviceNameFromWifi(context)
+    }
+
+    /**
+     * KẾT NỐI NHANH: chỉ cần đang nối WiFi của máy thu.
+     * Tự tìm địa chỉ máy (gateway) + tự dò cổng dữ liệu → không bắt người dùng nhập gì.
+     * Cổng đã dùng thành công lần trước được thử đầu tiên (nhớ cho lần sau).
+     */
+    fun quickConnectWifi() {
+        val name = _wifiDeviceName.value
+        val host = WifiInfoHelper.gatewayIp(context)
+        if (host.isNullOrBlank()) {
+            _connectionState.value = ConnectionState.Error(
+                "Chưa nối WiFi của máy thu. Vào Cài đặt → WiFi, chọn mạng có tên máy (VD GNSS-3366525) rồi quay lại."
+            )
+            return
+        }
+        viewModelScope.launch {
+            _isLoading.value = true
+            _connectionState.value = ConnectionState.Connecting
+            _connectingStep.value = "Đang tìm ${name ?: "máy thu"}..."
+
+            // Cổng đã lưu của chính máy này (nếu từng kết nối)
+            val remembered = recentDevices.value
+                .firstOrNull { it.type == DeviceInfo.ConnectionType.TCP_WIFI && it.name == name }
+                ?.address?.substringAfter(':')?.toIntOrNull()
+
+            val port = WifiInfoHelper.findOpenPort(context, host, remembered)
+            if (port == null) {
+                _isLoading.value = false
+                _connectingStep.value = ""
+                _connectionState.value = ConnectionState.Error(
+                    "Tìm thấy ${name ?: "máy thu"} nhưng máy chưa mở kênh dữ liệu.\n" +
+                    "Hãy bật máy thu, hoặc trong trang cấu hình của máy bật mục truyền dữ liệu (TCP Server)."
+                )
+                return@launch
+            }
+
+            _tcpHost.value = host
+            _tcpPort.value = port.toString()
+            _isLoading.value = false      // connectTcp() sẽ tự bật lại
+            connectTcp()
+        }
+    }
+
     // ────────────────────────────────────────────────────────
     // Init
     // ────────────────────────────────────────────────────────
 
     init {
         checkPermissions()
+        refreshWifiDevice()
     }
 
     // ────────────────────────────────────────────────────────
@@ -216,17 +270,22 @@ class ConnectionViewModel @Inject constructor(
 
             if (connectResult.isFailure) {
                 _connectionState.value = ConnectionState.Error(
-                    connectResult.exceptionOrNull()?.message ?: "Kết nối TCP thất bại"
+                    friendlyTcpError(connectResult.exceptionOrNull())
                 )
                 _isLoading.value = false
+                _connectingStep.value = ""
                 return@launch
             }
 
             _connectingStep.value = "Đang xác minh tín hiệu NMEA..."
             when (val verify = NmeaVerifier.verify(connection)) {
                 is NmeaVerifier.VerifyResult.Success -> {
+                    // Tên hiển thị = tên máy thu (tên WiFi), không dùng IP kỹ thuật
+                    val friendlyName = WifiInfoHelper.deviceNameFromWifi(context)
+                        ?: _wifiDeviceName.value
+                        ?: "Máy thu WiFi"
                     val deviceInfo = DeviceInfo(
-                        name    = "TCP $host",
+                        name    = friendlyName,
                         address = "$host:$port",
                         type    = DeviceInfo.ConnectionType.TCP_WIFI
                     )
@@ -279,6 +338,28 @@ class ConnectionViewModel @Inject constructor(
                     connectTcp()
                 }
             }
+        }
+    }
+
+    /**
+     * Đổi lỗi TCP kỹ thuật thành câu người đo hiểu được.
+     * Tránh hiện "ECONNREFUSED", "failed to connect to /192.168.1.1:9901".
+     */
+    private fun friendlyTcpError(e: Throwable?): String {
+        val msg = e?.message.orEmpty()
+        val dev = _wifiDeviceName.value ?: "máy thu"
+        return when {
+            msg.contains("ECONNREFUSED", true) || msg.contains("refused", true) ->
+                "Đã thấy $dev nhưng máy chưa mở kênh truyền dữ liệu.\n" +
+                "→ Tắt/bật lại máy thu, hoặc bật mục truyền dữ liệu (TCP Server) trong trang cấu hình của máy."
+            msg.contains("ETIMEDOUT", true) || msg.contains("timeout", true) ||
+            msg.contains("after", true) && msg.contains("ms", true) ->
+                "Không liên lạc được với $dev.\n→ Kiểm tra điện thoại còn nối đúng WiFi của máy thu không."
+            msg.contains("ENETUNREACH", true) || msg.contains("unreachable", true) ->
+                "Điện thoại chưa vào được mạng của $dev.\n→ Vào Cài đặt → WiFi và chọn lại mạng có tên máy."
+            msg.contains("EHOSTUNREACH", true) ->
+                "Không tìm thấy $dev trong mạng.\n→ Kiểm tra máy đã bật và đang phát WiFi."
+            else -> "Không kết nối được $dev. ${if (msg.isBlank()) "" else "($msg)"}"
         }
     }
 

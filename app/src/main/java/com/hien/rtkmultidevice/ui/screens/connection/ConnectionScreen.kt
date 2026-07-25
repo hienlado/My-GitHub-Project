@@ -53,6 +53,7 @@ fun ConnectionScreen(
     val connectingStep  by viewModel.connectingStep.collectAsStateWithLifecycle()
     val tcpHost         by viewModel.tcpHost.collectAsStateWithLifecycle()
     val tcpPort         by viewModel.tcpPort.collectAsStateWithLifecycle()
+    val wifiDeviceName  by viewModel.wifiDeviceName.collectAsStateWithLifecycle()
 
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -72,6 +73,7 @@ fun ConnectionScreen(
     LaunchedEffect(Unit) {
         viewModel.checkExistingConnection()
         viewModel.checkPermissions()
+        viewModel.refreshWifiDevice()   // nhận diện tên máy thu qua WiFi
     }
 
     Scaffold(
@@ -111,12 +113,23 @@ fun ConnectionScreen(
                 }
             } else {
 
+                // ── Kết nối nhanh: chỉ cần đang nối WiFi của máy thu ──
+                wifiDeviceName?.let { name ->
+                    item {
+                        QuickConnectCard(
+                            deviceName = name,
+                            isLoading  = isLoading,
+                            onConnect  = { viewModel.quickConnectWifi() }
+                        )
+                    }
+                }
+
                 // ── Lịch sử thiết bị ─────────────────────────
                 if (recentDevices.isNotEmpty()) {
                     item {
                         SectionHeader(
                             icon  = Icons.Default.History,
-                            title = "Gần đây (nhấn giữ để xoá)"
+                            title = "Máy đã dùng — chạm để kết nối"
                         )
                     }
                     items(recentDevices, key = { it.address }) { device ->
@@ -328,6 +341,68 @@ private fun SectionHeader(
 }
 
 @OptIn(ExperimentalFoundationApi::class)
+/**
+ * QuickConnectCard — Kết nối 1 chạm theo TÊN MÁY.
+ *
+ * Người dùng chỉ cần nối WiFi của máy thu (tên WiFi = tên máy, VD "GNSS-3366525").
+ * App tự tìm địa chỉ máy và tự dò kênh dữ liệu — không phải nhập IP/port.
+ */
+@Composable
+private fun QuickConnectCard(
+    deviceName : String,
+    isLoading  : Boolean,
+    onConnect  : () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Wifi, null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(26.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Đã tìm thấy máy",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        deviceName,
+                        fontWeight = FontWeight.Bold,
+                        fontSize   = 18.sp,
+                        color      = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick  = onConnect,
+                enabled  = !isLoading,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Đang kết nối...")
+                } else {
+                    Text("Kết nối", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun RecentDeviceCard(
     device   : DeviceInfo,
@@ -376,9 +451,11 @@ private fun RecentDeviceCard(
             )
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(device.name, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                // Hiện TÊN MÁY, không hiện IP/port (chi tiết kỹ thuật để trong Nâng cao)
+                Text(device.name, fontWeight = FontWeight.Medium, fontSize = 15.sp)
                 Text(
-                    device.address,
+                    if (device.type == DeviceInfo.ConnectionType.BLUETOOTH)
+                        "Bluetooth · đã lưu" else "WiFi · đã lưu",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -494,31 +571,47 @@ private fun TcpPanel(
             )
         ) {
             Text(
-                text = "Dùng khi máy RTK phát WiFi hotspot (thường port 2000 hoặc 5000). " +
-                       "Điện thoại phải kết nối cùng mạng WiFi với máy RTK.",
+                text = "Cách đơn giản: vào Cài đặt → WiFi, chọn mạng có TÊN MÁY " +
+                       "(VD GNSS-3366525), quay lại đây rồi nhấn Kết nối ở thẻ phía trên.\n\n" +
+                       "Phần dưới chỉ dùng khi cần nhập tay.",
                 modifier = Modifier.padding(12.dp),
                 style    = MaterialTheme.typography.bodySmall
             )
         }
 
-        OutlinedTextField(
-            value         = host,
-            onValueChange = onHostChange,
-            label         = { Text("Địa chỉ IP máy RTK") },
-            placeholder   = { Text("VD: 192.168.1.1") },
-            modifier      = Modifier.fillMaxWidth(),
-            singleLine    = true,
-            leadingIcon   = { Icon(Icons.Default.Wifi, null) }
-        )
-        OutlinedTextField(
-            value           = port,
-            onValueChange   = onPortChange,
-            label           = { Text("Cổng TCP (Port)") },
-            placeholder     = { Text("VD: 2000") },
-            modifier        = Modifier.fillMaxWidth(),
-            singleLine      = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-        )
+        // ── Nâng cao: IP/Port — mặc định thu gọn cho đỡ rối ──
+        var showAdvanced by remember { mutableStateOf(false) }
+        TextButton(onClick = { showAdvanced = !showAdvanced }) {
+            Icon(
+                if (showAdvanced) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = null
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(if (showAdvanced) "Ẩn cài đặt nâng cao" else "Nhập tay địa chỉ máy (nâng cao)")
+        }
+
+        AnimatedVisibility(visible = showAdvanced) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value         = host,
+                    onValueChange = onHostChange,
+                    label         = { Text("Địa chỉ IP máy RTK") },
+                    placeholder   = { Text("VD: 192.168.1.1") },
+                    modifier      = Modifier.fillMaxWidth(),
+                    singleLine    = true,
+                    leadingIcon   = { Icon(Icons.Default.Wifi, null) }
+                )
+                OutlinedTextField(
+                    value           = port,
+                    onValueChange   = onPortChange,
+                    label           = { Text("Cổng TCP (Port)") },
+                    placeholder     = { Text("VD: 2000") },
+                    modifier        = Modifier.fillMaxWidth(),
+                    singleLine      = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+            }
+        }
         AnimatedVisibility(visible = isLoading) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
