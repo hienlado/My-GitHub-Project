@@ -1,8 +1,12 @@
 package com.hien.rtkmultidevice.ui.screens.baseconfig
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hien.rtkmultidevice.core.connection.ConnectionManager
+import com.hien.rtkmultidevice.core.network.ReceiverWebControl
+import com.hien.rtkmultidevice.core.network.WifiInfoHelper
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.hien.rtkmultidevice.core.gnss.GnssDataManager
 import com.hien.rtkmultidevice.data.datastore.AppSettings
 import com.hien.rtkmultidevice.domain.model.GnssStatus
@@ -24,7 +28,8 @@ import javax.inject.Inject
 class BaseConfigViewModel @Inject constructor(
     private val appSettings: AppSettings,
     private val gnssManager: GnssDataManager,
-    private val connectionManager: ConnectionManager
+    private val connectionManager: ConnectionManager,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     val gnss: StateFlow<GnssStatus> = gnssManager.gnssStatus
@@ -125,6 +130,37 @@ class BaseConfigViewModel @Inject constructor(
             emptyMsg = "${device.displayName} không hỗ trợ đặt lại RTK bằng lệnh",
             okMsg    = "Đã đặt lại tính toán RTK — chờ máy dò lại lời giải",
             failMsg  = "Không gửi được lệnh đặt lại RTK")
+    }
+
+    // ── Điều khiển qua WiFi (dùng chính lệnh của trang web máy thu) ──
+    /** true nếu điện thoại đang trong mạng WiFi của máy thu (có thể gọi lệnh web). */
+    val webControlAvailable: Boolean get() = WifiInfoHelper.gatewayIp(context) != null
+
+    /** TẮT NGUỒN máy thu qua WiFi — tương đương nút Turn Off Receiver trên trang web. */
+    fun powerOffViaWeb() = webCall("tắt nguồn") { host -> ReceiverWebControl.powerOff(host) }
+
+    /** KHỞI ĐỘNG LẠI máy thu qua WiFi — tương đương nút Reboot Receiver. */
+    fun rebootViaWeb() = webCall("khởi động lại") { host -> ReceiverWebControl.reboot(host) }
+
+    private fun webCall(action: String, block: suspend (String) -> Result<String>) {
+        val host = WifiInfoHelper.gatewayIp(context)
+        if (host == null) {
+            _feedback.value = "Chưa nối WiFi của máy thu — không gửi được lệnh $action"
+            return
+        }
+        viewModelScope.launch {
+            _feedback.value = "Đang gửi lệnh $action..."
+            block(host)
+                .onSuccess { _feedback.value = "Đã gửi lệnh $action tới máy thu" }
+                .onFailure { e ->
+                    // Máy tắt/khởi động lại thường cắt kết nối ngay → coi là thành công
+                    val msg = e.message.orEmpty()
+                    _feedback.value = if (msg.contains("timeout", true) ||
+                        msg.contains("reset", true) || msg.contains("closed", true)
+                    ) "Đã gửi lệnh $action (máy ngắt kết nối — nhiều khả năng đã nhận lệnh)"
+                    else "Lỗi gửi lệnh $action: $msg"
+                }
+        }
     }
 
     /** Gửi một nhóm lệnh thô xuống máy, mỗi lệnh 1 dòng CR/LF. */

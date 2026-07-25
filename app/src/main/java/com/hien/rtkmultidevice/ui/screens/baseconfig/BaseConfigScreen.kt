@@ -272,24 +272,64 @@ fun BaseConfigScreen(
                 Text("Lưu cấu hình Base", fontWeight = FontWeight.SemiBold)
             }
 
-            // ── Mở trang cấu hình máy thu (có Turn Off Receiver, I/O Settings...) ──
+            // ── Điều khiển máy thu qua WiFi (dùng chính lệnh của trang web máy) ──
             val gw = remember { WifiInfoHelper.gatewayIp(context) }
             if (gw != null) {
-                OutlinedButton(
-                    onClick = {
-                        runCatching {
-                            context.startActivity(
-                                android.content.Intent(
-                                    android.content.Intent.ACTION_VIEW,
-                                    android.net.Uri.parse("http://$gw")
-                                )
+                var showWebPowerOff by remember { mutableStateOf(false) }
+
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Điều khiển máy thu (qua WiFi)",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = { viewModel.rebootViaWeb() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Khởi động lại máy thu") }
+
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedButton(
+                            onClick = { showWebPowerOff = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
                             )
-                        }.onFailure {
-                            Toast.makeText(context, "Không mở được trang $gw", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Mở trang cấu hình máy thu (tắt nguồn, I/O Settings)") }
+                        ) { Text("Tắt nguồn máy thu") }
+
+                        Spacer(Modifier.height(8.dp))
+                        TextButton(onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        android.net.Uri.parse("https://$gw")
+                                    )
+                                )
+                            }.onFailure {
+                                Toast.makeText(context, "Không mở được trang $gw", Toast.LENGTH_SHORT).show()
+                            }
+                        }) { Text("Mở trang cấu hình đầy đủ (I/O Settings...)") }
+                    }
+                }
+
+                if (showWebPowerOff) {
+                    AlertDialog(
+                        onDismissRequest = { showWebPowerOff = false },
+                        title = { Text("Tắt nguồn máy thu?") },
+                        text = {
+                            Text("Máy sẽ TẮT HẲN. Phải bấm nút nguồn trên máy để bật lại. " +
+                                "Hãy chắc đã đo xong và lưu đủ dữ liệu.")
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showWebPowerOff = false; viewModel.powerOffViaWeb() }) {
+                                Text("Tắt nguồn", color = MaterialTheme.colorScheme.error)
+                            }
+                        },
+                        dismissButton = { TextButton(onClick = { showWebPowerOff = false }) { Text("Huỷ") } }
+                    )
+                }
             }
 
             // ── Gửi lệnh xuống máy (chỉ máy dùng lệnh, vd ComNav T30) ──

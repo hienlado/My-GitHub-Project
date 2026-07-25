@@ -150,7 +150,8 @@ Dữ liệu ra: `data/output/_batch_hashes.json`, `_sheet_index.json`, `sheets/_
 - [ ] **Chỉ báo trạng thái RTK** (age of correction, baseline, HDOP) — để dành session sau.
 - [x] ~~Nút "Gửi lệnh cấu hình Base" cho ComNav T30~~ — ĐÃ LÀM (`sendCommandsToDevice()`). **Còn lại: KIỂM CHỨNG cú pháp lệnh SinoGNSS (nhất là `NTRIPSERVER`, cổng `LOG COMx`) với tài liệu T30 thật** trước khi tin dùng ngoài thực địa.
 - [ ] **Xoay app API key** `rtk-cadastral-2026-x7k9`.
-- [x] ~~Lệnh tắt nguồn~~ — ĐÃ TRA TÀI LIỆU: **ComNav OEM Board Reference Manual V1.5 KHÔNG có lệnh tắt nguồn** (43 lệnh, không có POWEROFF/SHUTDOWN). Đã thay bằng `RESET` (hardware reset, mục 3.2.23) = `BaseDevice.restartCommands()`, và `RTKCOMMAND RESET` (mục 3.2.24) = `rtkResetCommands()` để gỡ kẹt FLOAT. Tắt nguồn thật chỉ làm được bằng nút vật lý hoặc trang web của máy.
+- [x] ~~Tắt nguồn máy thu qua app~~ — ĐÃ XONG bằng **lệnh web bắt được từ trang máy** (`core/network/ReceiverWebControl.kt`): `GET https://<host>/power_off_set.cmd?urlStringId=admin&_=<ts>` (tắt nguồn) và `/reboot_system.cmd` (khởi động lại). Máy Sinov/CHC dùng **HTTPS + chứng thư tự ký** → helper bỏ kiểm tra cert CHỈ cho kết nối LAN tới máy thu. Không cần Cookie/Authorization — máy chỉ dựa vào `urlStringId=<user>`. Nút nằm ở màn Base → "Điều khiển máy thu (qua WiFi)".
+- [x] ~~Lệnh tắt nguồn qua serial~~ — ĐÃ TRA TÀI LIỆU: **ComNav OEM Board Reference Manual V1.5 KHÔNG có lệnh tắt nguồn** (43 lệnh, không có POWEROFF/SHUTDOWN). Đã thay bằng `RESET` (hardware reset, mục 3.2.23) = `BaseDevice.restartCommands()`, và `RTKCOMMAND RESET` (mục 3.2.24) = `rtkResetCommands()` để gỡ kẹt FLOAT. Tắt nguồn thật chỉ làm được bằng nút vật lý hoặc trang web của máy.
 - [ ] **Người dùng cần BUILD lại app** để kiểm chứng các thay đổi chưa compile (Base config, antenna height, CSV export, CAD, COGO...).
 - [ ] (NTRIP sản xuất) dựng **caster riêng VPS tại VN** hoặc dùng **VNGEONET**; RTK2go chỉ để test.
 
