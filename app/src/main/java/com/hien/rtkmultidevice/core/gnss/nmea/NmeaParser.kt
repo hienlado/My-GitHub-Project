@@ -86,6 +86,32 @@ object NmeaParser {
     }
 
     // ════════════════════════════════════════════════════════
+    // GST — Sai số thực tế (H/V) do máy thu ước lượng
+    // ════════════════════════════════════════════════════════
+
+    /**
+     * Parse $GNGST / $GPGST — nguồn của 2 số H (mặt bằng) và V (độ cao).
+     * Cấu trúc: $xxGST,time,rms,major,minor,orient,latDev,lonDev,altDev*cs
+     *
+     * Nếu máy thu không phát GST thì hàm trả null → UI sẽ ước lượng từ DOP.
+     */
+    fun parseGst(sentence: String): GstData? {
+        if (!sentence.contains("GST")) return null
+        if (!verifyChecksum(sentence)) return null
+
+        return runCatching {
+            val nmea  = extractNmea(sentence)
+            val parts = nmea.substringBefore('*').split(",")
+            if (parts.size < 9) return null
+
+            val lat = parts[6].toDoubleOrNull() ?: return null
+            val lon = parts[7].toDoubleOrNull() ?: return null
+            val alt = parts[8].toDoubleOrNull() ?: return null
+            GstData(latStdDev = lat, lonStdDev = lon, altStdDev = alt)
+        }.getOrNull()
+    }
+
+    // ════════════════════════════════════════════════════════
     // GSV — Phase 3
     // ════════════════════════════════════════════════════════
 

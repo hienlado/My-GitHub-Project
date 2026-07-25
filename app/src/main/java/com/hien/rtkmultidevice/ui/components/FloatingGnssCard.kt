@@ -152,16 +152,28 @@ fun FloatingGnssCard(
 
                 Spacer(Modifier.width(6.dp))
 
-                // ── HDOP + sats ────────────────────────────────
+                // ── Độ chính xác H/V (mét) + số vệ tinh ────────
+                // H = sai số mặt bằng, V = sai số độ cao (từ câu GST của máy thu).
+                // Dấu ~ nghĩa là máy chưa phát GST → app ước lượng từ DOP.
                 Column(horizontalAlignment = Alignment.End) {
+                    val est = if (gnss.accuracyIsMeasured) "" else "~"
                     Text(
-                        "H:${"%.1f".format(gnss.hdop)}",
-                        fontSize = 10.sp,
-                        color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        if (gnss.hasFix) "H $est${"%.3f".format(gnss.hDisplay)}" else "H --",
+                        fontSize   = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color      = fixColor
+                    )
+                    Text(
+                        if (gnss.hasFix) "V $est${"%.3f".format(gnss.vDisplay)}" else "V --",
+                        fontSize   = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color      = fixColor
                     )
                     Text(
                         "${gnss.satelliteCount}sv",
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                         color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                 }

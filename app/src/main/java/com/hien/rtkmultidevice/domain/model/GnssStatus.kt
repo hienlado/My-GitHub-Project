@@ -36,6 +36,22 @@ data class GnssStatus(
     /** PDOP — Position Dilution of Precision (từ GSA) */
     val pdop: Double = 0.0,
 
+    /** VDOP — Vertical Dilution of Precision (từ GSA) */
+    val vdop: Double = 0.0,
+
+    // ── Độ chính xác thực tế (từ GST) ────────────────────────
+    /**
+     * H — sai số MẶT BẰNG (mét) do máy thu ước lượng.
+     * 0.0 = máy chưa phát câu GST.
+     */
+    val hAccuracy: Double = 0.0,
+
+    /**
+     * V — sai số ĐỘ CAO (mét) do máy thu ước lượng.
+     * 0.0 = máy chưa phát câu GST.
+     */
+    val vAccuracy: Double = 0.0,
+
     /** Thời gian UTC định dạng hh:mm:ss */
     val utcTime: String = "--:--:--",
 
@@ -103,6 +119,41 @@ data class GnssStatus(
 
     /** Tổng số vệ tinh nhìn thấy (có thể nhiều hơn satelliteCount đang dùng) */
     val satellitesInView: Int get() = satellites.size
+
+    // ── H / V hiển thị trên thanh trạng thái ─────────────────
+    /**
+     * Sai số mặt bằng H (m) để HIỂN THỊ.
+     * Ưu tiên số thật từ câu GST; nếu máy không phát GST thì ƯỚC LƯỢNG
+     * từ HDOP × sai số đo khoảng cách điển hình theo loại fix.
+     */
+    val hDisplay: Double
+        get() = if (hAccuracy > 0.0) hAccuracy else hdop * baseSigma
+
+    /** Sai số độ cao V (m) để hiển thị. Độ cao luôn kém hơn mặt bằng (~1.5–2 lần). */
+    val vDisplay: Double
+        get() = when {
+            vAccuracy > 0.0 -> vAccuracy
+            vdop > 0.0      -> vdop * baseSigma
+            else            -> hDisplay * 1.8
+        }
+
+    /** true nếu H/V là số thật từ máy (GST), false nếu chỉ là ước lượng từ DOP. */
+    val accuracyIsMeasured: Boolean get() = hAccuracy > 0.0
+
+    /** Sai số đo khoảng cách điển hình (m) theo loại lời giải — dùng khi ước lượng. */
+    private val baseSigma: Double
+        get() = when (fixQuality) {
+            4    -> 0.010   // RTK Fixed  ~1 cm
+            5    -> 0.30    // RTK Float  ~30 cm
+            2    -> 1.0     // DGPS       ~1 m
+            1    -> 2.5     // Single     ~2.5 m
+            else -> 0.0
+        }
+
+    /** Chuỗi hiển thị gọn, VD "H 0.012  V 0.021" (mm). Trả "H --  V --" khi chưa có fix. */
+    val accuracyText: String
+        get() = if (!hasFix) "H --  V --"
+                else "H %.3f  V %.3f".format(hDisplay, vDisplay)
 
     /** Số vệ tinh đang dùng theo từng constellation */
     val usedSatelliteCount: Int get() = satellites.count { it.isUsed }

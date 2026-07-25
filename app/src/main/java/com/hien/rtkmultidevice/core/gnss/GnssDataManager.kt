@@ -267,8 +267,21 @@ class GnssDataManager @Inject constructor(
                     _latestGsa.value = gsa
                     // Cập nhật usedPrnSet để đánh dấu isUsed trong GSV
                     usedPrnSet.addAll(gsa.satelliteIds)
-                    // Cập nhật PDOP vào GnssStatus
-                    _gnssStatus.value = _gnssStatus.value.copy(pdop = gsa.pdop)
+                    // Cập nhật PDOP/VDOP vào GnssStatus (VDOP dùng để ước lượng V)
+                    _gnssStatus.value = _gnssStatus.value.copy(
+                        pdop = gsa.pdop,
+                        vdop = gsa.vdop
+                    )
+                }
+            }
+
+            // ── GST: sai số thực tế H/V do máy thu ước lượng ─
+            sentence.contains("GST") -> {
+                NmeaParser.parseGst(sentence)?.let { gst ->
+                    _gnssStatus.value = _gnssStatus.value.copy(
+                        hAccuracy = gst.horizontalAccuracy,
+                        vAccuracy = gst.verticalAccuracy
+                    )
                 }
             }
 

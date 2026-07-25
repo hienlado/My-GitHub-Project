@@ -27,6 +27,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.hien.rtkmultidevice.core.network.WifiInfoHelper
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -271,6 +272,26 @@ fun BaseConfigScreen(
                 Text("Lưu cấu hình Base", fontWeight = FontWeight.SemiBold)
             }
 
+            // ── Mở trang cấu hình máy thu (có Turn Off Receiver, I/O Settings...) ──
+            val gw = remember { WifiInfoHelper.gatewayIp(context) }
+            if (gw != null) {
+                OutlinedButton(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse("http://$gw")
+                                )
+                            )
+                        }.onFailure {
+                            Toast.makeText(context, "Không mở được trang $gw", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Mở trang cấu hình máy thu (tắt nguồn, I/O Settings)") }
+            }
+
             // ── Gửi lệnh xuống máy (chỉ máy dùng lệnh, vd ComNav T30) ──
             if (BaseDevice.from(config.deviceType).commandBased) {
                 var showSend by remember { mutableStateOf(false) }
@@ -324,8 +345,8 @@ fun BaseConfigScreen(
 
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Máy ComNav không có lệnh TẮT NGUỒN (bộ lệnh OEM không hỗ trợ) — " +
-                    "chỉ tắt được bằng nút nguồn trên máy. Nút trên đây khởi động lại máy.",
+                    "Bộ lệnh OEM không có lệnh TẮT NGUỒN. Muốn tắt máy: mở trang cấu hình " +
+                    "→ Receiver Configuration → Receiver Reset → Turn Off Receiver.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
