@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -56,6 +57,7 @@ fun NtripConfigScreen(
     val sourcetableEntries    by viewModel.sourcetableEntries.collectAsStateWithLifecycle()
     val isFetchingSourcetable by viewModel.isFetchingSourcetable.collectAsStateWithLifecycle()
     val sourcetableError      by viewModel.sourcetableError.collectAsStateWithLifecycle()
+    val credentialWarning     by viewModel.credentialWarning.collectAsStateWithLifecycle()
 
     var showPassword        by remember { mutableStateOf(false) }
     var showPickerDialog    by remember { mutableStateOf(false) }
@@ -182,6 +184,32 @@ fun NtripConfigScreen(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(horizontal = 4.dp)
                 )
+            }
+
+            // ── Cảnh báo: mountpoint/đăng nhập khác lần chạy được ──
+            credentialWarning?.let { warn ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    )
+                ) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
+                        Icon(
+                            Icons.Default.Warning, null,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            warn,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        TextButton(onClick = { viewModel.clearCredentialWarning() }) { Text("Bỏ qua") }
+                    }
+                }
             }
 
             // Gợi ý sử dụng Browse

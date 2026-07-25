@@ -150,6 +150,7 @@ Dữ liệu ra: `data/output/_batch_hashes.json`, `_sheet_index.json`, `sheets/_
 - [ ] **Chỉ báo trạng thái RTK** (age of correction, baseline, HDOP) — để dành session sau.
 - [x] ~~Nút "Gửi lệnh cấu hình Base" cho ComNav T30~~ — ĐÃ LÀM (`sendCommandsToDevice()`). **Còn lại: KIỂM CHỨNG cú pháp lệnh SinoGNSS (nhất là `NTRIPSERVER`, cổng `LOG COMx`) với tài liệu T30 thật** trước khi tin dùng ngoài thực địa.
 - [ ] **Xoay app API key** `rtk-cadastral-2026-x7k9`.
+- [ ] **KIỂM CHỨNG lệnh tắt nguồn** (`POWEROFF/SHUTDOWN/POWERCTRL OFF` trong `BaseDevice.powerOffCommands()`) với tài liệu ComNav T30 thật.
 - [ ] **Người dùng cần BUILD lại app** để kiểm chứng các thay đổi chưa compile (Base config, antenna height, CSV export, CAD, COGO...).
 - [ ] (NTRIP sản xuất) dựng **caster riêng VPS tại VN** hoặc dùng **VNGEONET**; RTK2go chỉ để test.
 

@@ -8,6 +8,10 @@ import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -120,5 +124,55 @@ object WifiInfoHelper {
         }
         Log.w(TAG, "Không cổng nào mở trên $host (đã thử ${ports.size} cổng)")
         null
+    }
+
+    /** Một máy thu tìm được khi quét mạng. */
+    data class FoundDevice(val host: String, val port: Int)
+
+    /**
+     * QUÉT MẠNG tìm máy thu RTK.
+     *
+     * Cần khi máy thu KHÔNG tự phát WiFi mà nối chung router
+     * (VD ComNav T30 ở 192.168.1.8) — lúc đó gateway là router, không phải máy thu.
+     *
+     * Cách làm: lấy dải mạng của điện thoại (VD 192.168.1.x), thử song song
+     * .1 → .254 với các cổng dữ liệu phổ biến. Chạy song song nên chỉ vài giây.
+     *
+     * @param maxResults dừng sớm khi đã đủ số máy cần tìm.
+     */
+    suspend fun scanLan(
+        context    : Context,
+        timeoutMs  : Int = 350,
+        maxResults : Int = 5
+    ): List<FoundDevice> = withContext(Dispatchers.IO) {
+        val myIp = phoneIp(context) ?: return@withContext emptyList()
+        val prefix = myIp.substringBeforeLast('.', "")
+        if (prefix.isBlank()) return@withContext emptyList()
+
+        val found = java.util.concurrent.CopyOnWriteArrayList<FoundDevice>()
+        // Ưu tiên các địa chỉ hay gặp trước, rồi mới quét phần còn lại
+        val priority = listOf(1, 8, 2, 100, 10, 200)
+        val hosts = (priority + (1..254).filterNot { it in priority }).map { "$prefix.$it" }
+
+        coroutineScope {
+            val sem = kotlinx.coroutines.sync.Semaphore(48)   // giới hạn socket đồng thời
+            hosts.map { h ->
+                async {
+                    if (found.size >= maxResults) return@async
+                    sem.withPermit {
+                        if (h == myIp) return@withPermit
+                        for (p in COMMON_PORTS) {
+                            if (found.size >= maxResults) return@withPermit
+                            if (probe(context, h, p, timeoutMs)) {
+                                Log.d(TAG, "Quét thấy máy: $h:$p")
+                                found.add(FoundDevice(h, p))
+                                return@withPermit          // 1 máy chỉ lấy 1 cổng
+                            }
+                        }
+                    }
+                }
+            }.awaitAll()
+        }
+        found.toList()
     }
 }

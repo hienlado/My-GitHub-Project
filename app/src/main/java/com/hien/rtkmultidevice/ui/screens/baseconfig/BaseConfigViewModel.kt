@@ -103,6 +103,37 @@ class BaseConfigViewModel @Inject constructor(
         }
     }
 
+    /**
+     * TẮT NGUỒN máy thu qua lệnh (thay cho việc phải bấm nút vật lý).
+     * Gửi lần lượt các biến thể lệnh; máy hiểu lệnh nào sẽ tắt theo lệnh đó.
+     */
+    fun powerOffDevice() {
+        val device = BaseDevice.from(_config.value.deviceType)
+        val cmds = device.powerOffCommands()
+        if (cmds.isEmpty()) {
+            _feedback.value = "${device.displayName} không hỗ trợ tắt bằng lệnh — dùng nút nguồn trên máy"
+            return
+        }
+        val conn = connectionManager.getActiveConnection()
+        if (conn == null) {
+            _feedback.value = "Chưa kết nối máy thu"
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                for (c in cmds) {
+                    conn.sendBytes((c + "\r\n").toByteArray(Charsets.US_ASCII))
+                    delay(200)
+                }
+            }.onSuccess {
+                _feedback.value = "Đã gửi lệnh tắt máy — kiểm tra đèn báo trên máy thu"
+            }.onFailure {
+                // Mất kết nối ngay sau khi gửi thường là dấu hiệu máy ĐÃ tắt
+                _feedback.value = "Đã gửi lệnh tắt (kết nối ngắt — nhiều khả năng máy đã tắt)"
+            }
+        }
+    }
+
     /** WGS-84 hiện lưu -> VN-2000 (N,E) để hiển thị. null nếu chưa có toạ độ. */
     fun toVn2000(): Pair<Double, Double>? {
         val c = _config.value

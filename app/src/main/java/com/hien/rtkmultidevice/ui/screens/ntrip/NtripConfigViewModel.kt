@@ -12,6 +12,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -67,10 +68,47 @@ class NtripConfigViewModel @Inject constructor(
 
     // ── Input handlers ───────────────────────────────────────
     fun onHostChanged(v: String)       { _host.value = v }
-    fun onPortChanged(v: String)       { _port.value = v }
-    fun onMountPointChanged(v: String) { _mountPoint.value = v }
-    fun onUsernameChanged(v: String)   { _username.value = v }
-    fun onPasswordChanged(v: String)   { _password.value = v }
+    fun onPortChanged(v: String)       { _port.value = v; checkChangedVsLastOk() }
+    fun onMountPointChanged(v: String) { _mountPoint.value = v; checkChangedVsLastOk() }
+    fun onUsernameChanged(v: String)   { _username.value = v; checkChangedVsLastOk() }
+    fun onPasswordChanged(v: String)   { _password.value = v; checkChangedVsLastOk() }
+
+    // ── Cảnh báo khi mountpoint / đăng nhập khác lần chạy được ──
+    private val _credentialWarning = MutableStateFlow<String?>(null)
+    val credentialWarning: StateFlow<String?> = _credentialWarning.asStateFlow()
+    fun clearCredentialWarning() { _credentialWarning.value = null }
+
+    /**
+     * So sánh thông tin đang nhập với lần NTRIP CHẠY ĐƯỢC gần nhất.
+     * Giúp phát hiện sớm: đổi mountpoint, đổi tên đăng nhập hoặc mật khẩu —
+     * nguyên nhân rất hay gặp khiến rover đang Fixed bỗng mất cải chính.
+     */
+    private fun checkChangedVsLastOk() {
+        viewModelScope.launch {
+            val (okMount, okUser, okPass) = appSettings.lastOkNtripFlow.first()
+            if (okMount.isBlank() && okUser.isBlank()) return@launch   // chưa có mốc so sánh
+
+            val changes = buildList {
+                if (okMount.isNotBlank() && _mountPoint.value.isNotBlank() &&
+                    okMount != _mountPoint.value) add("mountpoint ($okMount → ${_mountPoint.value})")
+                if (okUser.isNotBlank() && _username.value.isNotBlank() &&
+                    okUser != _username.value) add("tên đăng nhập")
+                if (okPass.isNotBlank() && _password.value.isNotBlank() &&
+                    okPass != _password.value) add("mật khẩu")
+            }
+            _credentialWarning.value = if (changes.isEmpty()) null else
+                "Đã thay đổi ${changes.joinToString(", ")} so với lần kết nối thành công gần nhất. " +
+                "Nếu không cố ý đổi, hãy kiểm tra lại — sai thông tin sẽ mất cải chính (rover không Fixed)."
+        }
+    }
+
+    /** Gọi khi NTRIP kết nối THÀNH CÔNG — ghi lại làm mốc so sánh cho lần sau. */
+    fun rememberWorkingCredentials() {
+        viewModelScope.launch {
+            appSettings.saveLastOkNtrip(_mountPoint.value, _username.value, _password.value)
+            _credentialWarning.value = null
+        }
+    }
 
     // ── Sourcetable functions ───────────────────────────────
 

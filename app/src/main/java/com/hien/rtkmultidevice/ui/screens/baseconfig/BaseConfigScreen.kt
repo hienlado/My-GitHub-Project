@@ -301,6 +301,36 @@ fun BaseConfigScreen(
                 Text("Lưu ý: kiểm chứng cú pháp lệnh với tài liệu máy trước khi gửi.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+
+            // ── Tắt nguồn máy thu qua app ──
+            if (BaseDevice.from(config.deviceType).canPowerOff) {
+                var showPowerOff by remember { mutableStateOf(false) }
+                Spacer(Modifier.height(4.dp))
+                OutlinedButton(
+                    onClick = { showPowerOff = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("Tắt nguồn máy thu") }
+
+                if (showPowerOff) {
+                    AlertDialog(
+                        onDismissRequest = { showPowerOff = false },
+                        title = { Text("Tắt máy thu?") },
+                        text = {
+                            Text("Máy sẽ tắt nguồn và MẤT KẾT NỐI. Bạn phải bấm nút nguồn trên máy để bật lại. " +
+                                "Chỉ tắt khi đã đo xong và lưu đủ dữ liệu.")
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showPowerOff = false; viewModel.powerOffDevice() }) {
+                                Text("Tắt máy", color = MaterialTheme.colorScheme.error)
+                            }
+                        },
+                        dismissButton = { TextButton(onClick = { showPowerOff = false }) { Text("Huỷ") } }
+                    )
+                }
+            }
             Spacer(Modifier.height(24.dp))
         }
     }

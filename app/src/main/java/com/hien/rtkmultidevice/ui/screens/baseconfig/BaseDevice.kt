@@ -50,6 +50,25 @@ enum class BaseDevice(val key: String, val displayName: String, val commandBased
         return cmds
     }
 
+    /**
+     * Lệnh TẮT NGUỒN máy thu (gửi qua Bluetooth/serial).
+     *
+     * Máy SinoGNSS/ComNav dùng bộ lệnh kiểu NovAtel — lệnh tắt máy khác nhau theo
+     * đời máy, nên thử lần lượt vài biến thể phổ biến. Máy sẽ nhận lệnh nó hiểu
+     * và bỏ qua lệnh lạ.
+     *
+     * ⚠ KIỂM CHỨNG với tài liệu máy trước khi tin dùng ngoài thực địa.
+     * Trả rỗng nếu máy không hỗ trợ tắt bằng lệnh (phải nhấn nút nguồn).
+     */
+    fun powerOffCommands(): List<String> = when (this) {
+        COMNAV_T30 -> listOf("POWEROFF", "SHUTDOWN", "POWERCTRL OFF")
+        STEC       -> emptyList()   // STEC tắt qua trang web/nút nguồn
+        GENERIC    -> emptyList()
+    }
+
+    /** Máy có hỗ trợ tắt nguồn bằng lệnh không. */
+    val canPowerOff: Boolean get() = powerOffCommands().isNotEmpty()
+
     /** Mô tả kênh phát cải chính (datalink) — dùng chung mọi thiết bị. */
     fun datalinkGuide(c: AppSettings.BaseConfig): String = when (c.datalinkType) {
         0 -> "Kênh phát: NTRIP Server (đẩy RTCM lên caster).\n" +

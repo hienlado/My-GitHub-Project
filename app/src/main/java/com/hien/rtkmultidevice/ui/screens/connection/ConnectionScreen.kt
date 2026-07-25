@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -54,6 +55,10 @@ fun ConnectionScreen(
     val tcpHost         by viewModel.tcpHost.collectAsStateWithLifecycle()
     val tcpPort         by viewModel.tcpPort.collectAsStateWithLifecycle()
     val wifiDeviceName  by viewModel.wifiDeviceName.collectAsStateWithLifecycle()
+    val phoneIp         by viewModel.phoneIp.collectAsStateWithLifecycle()
+    val phoneIpWarning  by viewModel.phoneIpWarning.collectAsStateWithLifecycle()
+    val isScanning      by viewModel.isScanning.collectAsStateWithLifecycle()
+    val scanResults     by viewModel.scanResults.collectAsStateWithLifecycle()
 
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -113,14 +118,58 @@ fun ConnectionScreen(
                 }
             } else {
 
+                // ── Cảnh báo IP điện thoại đã đổi ────────────
+                phoneIpWarning?.let { warn ->
+                    item {
+                        WarningCard(text = warn, onDismiss = { viewModel.clearPhoneIpWarning() })
+                    }
+                }
+
                 // ── Kết nối nhanh: chỉ cần đang nối WiFi của máy thu ──
                 wifiDeviceName?.let { name ->
                     item {
                         QuickConnectCard(
-                            deviceName = name,
-                            isLoading  = isLoading,
-                            onConnect  = { viewModel.quickConnectWifi() }
+                            deviceName  = name,
+                            phoneIp     = phoneIp,
+                            isLoading   = isLoading,
+                            isScanning  = isScanning,
+                            onConnect   = { viewModel.quickConnectWifi() },
+                            onScan      = { viewModel.scanForDevices() }
                         )
+                    }
+                }
+
+                // ── Kết quả quét mạng (máy nối chung router) ──
+                if (scanResults.isNotEmpty()) {
+                    item {
+                        SectionHeader(
+                            icon  = Icons.Default.Wifi,
+                            title = "Máy tìm thấy trong mạng"
+                        )
+                    }
+                    items(scanResults, key = { "scan_${it.host}_${it.port}" }) { found ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.connectFound(found) }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Wifi, null, tint = MaterialTheme.colorScheme.primary)
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text("Máy thu tại ${found.host}", fontWeight = FontWeight.Medium)
+                                    Text(
+                                        "Chạm để kết nối",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
                     }
                 }
 
@@ -347,11 +396,41 @@ private fun SectionHeader(
  * Người dùng chỉ cần nối WiFi của máy thu (tên WiFi = tên máy, VD "GNSS-3366525").
  * App tự tìm địa chỉ máy và tự dò kênh dữ liệu — không phải nhập IP/port.
  */
+/** Thẻ cảnh báo màu vàng — dùng cho đổi IP, đổi thông tin đăng nhập... */
+@Composable
+private fun WarningCard(text: String, onDismiss: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+        )
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
+            Icon(
+                Icons.Default.Warning, null,
+                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+            TextButton(onClick = onDismiss) { Text("Đã hiểu") }
+        }
+    }
+}
+
 @Composable
 private fun QuickConnectCard(
     deviceName : String,
+    phoneIp    : String?,
     isLoading  : Boolean,
-    onConnect  : () -> Unit
+    isScanning : Boolean,
+    onConnect  : () -> Unit,
+    onScan     : () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -397,6 +476,29 @@ private fun QuickConnectCard(
                     Text("Đang kết nối...")
                 } else {
                     Text("Kết nối", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            // Địa chỉ điện thoại — máy thu cần số này khi lấy cải chính qua điện thoại
+            phoneIp?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Địa chỉ điện thoại: $it  (nhập vào mục RTK Client trên máy thu nếu dùng cải chính qua điện thoại)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                )
+            }
+
+            // Máy nối chung router (VD T30) → phải quét mới thấy
+            TextButton(onClick = onScan, enabled = !isScanning) {
+                if (isScanning) {
+                    CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Đang quét mạng...")
+                } else {
+                    Icon(Icons.Default.Search, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Không thấy máy? Quét mạng tìm máy thu")
                 }
             }
         }

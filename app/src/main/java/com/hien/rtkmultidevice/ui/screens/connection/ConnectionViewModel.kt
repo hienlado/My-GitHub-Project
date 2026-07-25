@@ -12,6 +12,8 @@ import com.hien.rtkmultidevice.core.connection.tcp.TcpConnectionImpl
 import com.hien.rtkmultidevice.core.gnss.GnssDataManager
 import com.hien.rtkmultidevice.core.gnss.NmeaVerifier
 import com.hien.rtkmultidevice.core.network.WifiInfoHelper
+import com.hien.rtkmultidevice.data.datastore.AppSettings
+import kotlinx.coroutines.flow.first
 import com.hien.rtkmultidevice.core.permission.BluetoothPermissionState
 import com.hien.rtkmultidevice.core.permission.PermissionManager
 import com.hien.rtkmultidevice.domain.model.DeviceInfo
@@ -43,6 +45,7 @@ class ConnectionViewModel @Inject constructor(
     private val gnssDataManager       : GnssDataManager,
     private val permissionManager     : PermissionManager,
     private val deviceRepository      : IDeviceRepository,
+    private val appSettings           : AppSettings,
     @ApplicationContext private val context: Context          // inject để buộc TCP socket đi qua WiFi
 ) : ViewModel() {
 
@@ -95,9 +98,66 @@ class ConnectionViewModel @Inject constructor(
     private val _wifiDeviceName = MutableStateFlow<String?>(null)
     val wifiDeviceName: StateFlow<String?> = _wifiDeviceName.asStateFlow()
 
-    /** Làm mới tên máy thu — gọi khi vào màn hình Kết nối. */
+    /** IP hiện tại của điện thoại trong mạng WiFi (máy thu cần IP này cho RTK Client). */
+    private val _phoneIp = MutableStateFlow<String?>(null)
+    val phoneIp: StateFlow<String?> = _phoneIp.asStateFlow()
+
+    /** Cảnh báo khi IP điện thoại ĐỔI so với lần trước → phải sửa lại trên máy thu. */
+    private val _phoneIpWarning = MutableStateFlow<String?>(null)
+    val phoneIpWarning: StateFlow<String?> = _phoneIpWarning.asStateFlow()
+
+    // ── Quét mạng tìm máy thu (máy nối chung router, VD T30) ──
+    private val _isScanning = MutableStateFlow(false)
+    val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
+
+    private val _scanResults = MutableStateFlow<List<WifiInfoHelper.FoundDevice>>(emptyList())
+    val scanResults: StateFlow<List<WifiInfoHelper.FoundDevice>> = _scanResults.asStateFlow()
+
+    /** Làm mới tên máy thu + IP điện thoại — gọi khi vào màn hình Kết nối. */
     fun refreshWifiDevice() {
         _wifiDeviceName.value = WifiInfoHelper.deviceNameFromWifi(context)
+        val ip = WifiInfoHelper.phoneIp(context)
+        _phoneIp.value = ip
+        if (ip.isNullOrBlank()) return
+
+        viewModelScope.launch {
+            val last = appSettings.lastPhoneIpFlow.first()
+            _phoneIpWarning.value = if (last.isNotBlank() && last != ip) {
+                "Địa chỉ điện thoại đã đổi: $last → $ip.\n" +
+                "Nếu máy thu lấy cải chính qua điện thoại, hãy sửa mục RTK Client trên máy thu thành $ip."
+            } else null
+            appSettings.saveLastPhoneIp(ip)
+        }
+    }
+
+    fun clearPhoneIpWarning() { _phoneIpWarning.value = null }
+
+    /**
+     * Quét mạng tìm máy thu — dùng khi máy thu nối chung router
+     * (gateway là router, không phải máy thu).
+     */
+    fun scanForDevices() {
+        viewModelScope.launch {
+            _isScanning.value = true
+            _scanResults.value = emptyList()
+            _connectingStep.value = "Đang quét mạng tìm máy thu..."
+            _scanResults.value = WifiInfoHelper.scanLan(context)
+            _connectingStep.value = ""
+            _isScanning.value = false
+            if (_scanResults.value.isEmpty()) {
+                _connectionState.value = ConnectionState.Error(
+                    "Không tìm thấy máy thu nào trong mạng.\n" +
+                    "→ Kiểm tra máy đã bật và cùng mạng WiFi với điện thoại."
+                )
+            }
+        }
+    }
+
+    /** Kết nối tới máy tìm được khi quét. */
+    fun connectFound(device: WifiInfoHelper.FoundDevice) {
+        _tcpHost.value = device.host
+        _tcpPort.value = device.port.toString()
+        connectTcp()
     }
 
     /**

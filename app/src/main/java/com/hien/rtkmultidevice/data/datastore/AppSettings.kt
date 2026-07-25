@@ -46,6 +46,14 @@ class AppSettings @Inject constructor(
         private val KEY_NTRIP_PASSWORD     = stringPreferencesKey("ntrip_password")
         private val KEY_NTRIP_GGA_INTERVAL = intPreferencesKey("ntrip_gga_interval")
 
+        // ── Ghi nhớ để CẢNH BÁO khi có thay đổi ──────────────
+        /** IP điện thoại lần gần nhất (máy thu trỏ RTK Client về IP này) */
+        private val KEY_LAST_PHONE_IP  = stringPreferencesKey("last_phone_ip")
+        /** Mountpoint + tên đăng nhập + mật khẩu của lần NTRIP chạy được gần nhất */
+        private val KEY_OK_MOUNT       = stringPreferencesKey("ntrip_ok_mount")
+        private val KEY_OK_USER        = stringPreferencesKey("ntrip_ok_user")
+        private val KEY_OK_PASS        = stringPreferencesKey("ntrip_ok_pass")
+
         // ── Dự án đang hoạt động ────────────────────────────
         /**
          * ID dự án đang mở. -1 = chưa chọn dự án.
@@ -123,6 +131,30 @@ class AppSettings @Inject constructor(
     }
 
     /** Lưu cấu hình NTRIP mới. */
+    // ── Ghi nhớ IP điện thoại (cho cảnh báo đổi IP) ─────────
+    val lastPhoneIpFlow: Flow<String> = context.dataStore.data.map { it[KEY_LAST_PHONE_IP] ?: "" }
+
+    suspend fun saveLastPhoneIp(ip: String) {
+        context.dataStore.edit { it[KEY_LAST_PHONE_IP] = ip }
+    }
+
+    /** Thông tin NTRIP của lần kết nối THÀNH CÔNG gần nhất (mount, user, pass). */
+    val lastOkNtripFlow: Flow<Triple<String, String, String>> = context.dataStore.data.map {
+        Triple(
+            it[KEY_OK_MOUNT] ?: "",
+            it[KEY_OK_USER] ?: "",
+            secureStringCipher.decrypt(it[KEY_OK_PASS] ?: "")
+        )
+    }
+
+    suspend fun saveLastOkNtrip(mount: String, user: String, pass: String) {
+        context.dataStore.edit {
+            it[KEY_OK_MOUNT] = mount
+            it[KEY_OK_USER]  = user
+            it[KEY_OK_PASS]  = secureStringCipher.encrypt(pass)
+        }
+    }
+
     suspend fun saveNtripConfig(config: NtripConfig) {
         context.dataStore.edit { prefs ->
             prefs[KEY_NTRIP_HOST]         = config.host

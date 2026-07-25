@@ -408,6 +408,17 @@ class GnssDataManager @Inject constructor(
                     rtcmBytesForwarded += rtcmBytes.size
                     rtcmPacketsForwarded++
                     rtcmForwardError = null
+                    // Gói RTCM ĐẦU TIÊN về được máy = cấu hình NTRIP này CHẠY ĐƯỢC.
+                    // Ghi lại làm mốc để cảnh báo nếu sau này mountpoint/đăng nhập bị đổi.
+                    if (rtcmPacketsForwarded == 1) {
+                        managerScope.launch {
+                            runCatching {
+                                appSettings.saveLastOkNtrip(
+                                    config.mountPoint, config.username, config.password
+                                )
+                            }
+                        }
+                    }
                     // Log định kỳ: gói đầu tiên + mỗi 50 gói tiếp
                     if (rtcmPacketsForwarded == 1 || rtcmPacketsForwarded % 50 == 0) {
                         Log.d(TAG, "RTCM → thiết bị ✓  gói #$rtcmPacketsForwarded  ${rtcmBytes.size}B  tổng=$rtcmBytesForwarded B")
