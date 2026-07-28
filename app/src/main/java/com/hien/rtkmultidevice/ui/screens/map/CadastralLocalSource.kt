@@ -48,8 +48,17 @@ object CadastralLocalSource {
      * Tìm thửa theo TÊN CHỦ (offline, không dấu, khớp chuỗi con).
      * _owners.json rất lớn (hàng trăm nghìn bản ghi) nên ĐỌC LUỒNG bằng JsonReader —
      * KHÔNG nạp cả file vào RAM (tránh OOM), chỉ giữ tối đa `limit` kết quả khớp.
+     *
+     * @param communeFilter slug xã cần lọc (VD "xachauduc"); null = tìm TOÀN BỘ dữ liệu.
+     *        Lọc theo xã vừa cho kết quả gọn hơn, vừa nhanh hơn vì bỏ qua bản ghi khác xã
+     *        trước khi phải bỏ dấu tên chủ.
      */
-    suspend fun searchOwner(context: Context, query: String, limit: Int = 50): List<OwnerHit> =
+    suspend fun searchOwner(
+        context: Context,
+        query: String,
+        limit: Int = 50,
+        communeFilter: String? = null
+    ): List<OwnerHit> =
         withContext(Dispatchers.IO) {
             val q = deaccent(query.trim())
             if (q.length < 2) return@withContext emptyList()
@@ -77,6 +86,8 @@ object CadastralLocalSource {
                             }
                         }
                         r.endObject()
+                        // Lọc theo xã trước (rẻ) rồi mới so tên chủ (tốn hơn vì phải bỏ dấu)
+                        if (communeFilter != null && commune != communeFilter) continue
                         if (chu.isNotEmpty() && deaccent(chu).contains(q)) {
                             out.add(OwnerHit(chu, commune, communeName, to, thua, dienTich))
                             if (out.size >= limit) break

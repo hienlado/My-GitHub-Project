@@ -141,9 +141,17 @@ class BaseConfigViewModel @Inject constructor(
         ReceiverWebControl.powerOff(context, host)
     }
 
-    /** KHỞI ĐỘNG LẠI máy thu qua WiFi — tương đương nút Reboot Receiver. */
+    /**
+     * KHỞI ĐỘNG LẠI máy thu qua WiFi.
+     * Mỗi hãng một giao thức nên chọn theo thiết bị đang cấu hình:
+     *   • ComNav T30 → POST http://<host>/cgi-bin/reboot.cgi
+     *   • Sinov M6 Pro → GET https://<host>/reboot_system.cmd
+     */
     fun rebootViaWeb() = webCall("khởi động lại") { host ->
-        ReceiverWebControl.reboot(context, host)
+        if (BaseDevice.from(_config.value.deviceType) == BaseDevice.COMNAV_T30)
+            ReceiverWebControl.rebootT30(context, host)
+        else
+            ReceiverWebControl.reboot(context, host)
     }
 
     private fun webCall(action: String, block: suspend (String) -> Result<String>) {

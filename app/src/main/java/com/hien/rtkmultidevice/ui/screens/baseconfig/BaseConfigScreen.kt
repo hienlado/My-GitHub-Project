@@ -289,14 +289,26 @@ fun BaseConfigScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Khởi động lại máy thu") }
 
-                        Spacer(Modifier.height(6.dp))
-                        OutlinedButton(
-                            onClick = { showWebPowerOff = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error
+                        // T30 không có lệnh tắt nguồn (web chỉ có Reboot/Factory)
+                        val isT30 = BaseDevice.from(config.deviceType) == BaseDevice.COMNAV_T30
+                        if (!isT30) {
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedButton(
+                                onClick = { showWebPowerOff = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                )
+                            ) { Text("Tắt nguồn máy thu") }
+                        } else {
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "ComNav T30 chưa hỗ trợ tắt nguồn từ xa (web máy chỉ có Reboot). " +
+                                "Dùng nút nguồn trên máy để tắt.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        ) { Text("Tắt nguồn máy thu") }
+                        }
 
                         Spacer(Modifier.height(8.dp))
                         TextButton(onClick = {

@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /**
@@ -198,13 +199,19 @@ fun OwnerSearchButton(
         var searched by remember { mutableStateOf(false) }
         val hasOwners = remember { CadastralLocalSource.hasOwners(context) }
         val scope = rememberCoroutineScope()
+        // null = tìm trên TOÀN BỘ dữ liệu; khác null = chỉ trong 1 xã
+        var communeFilter by remember { mutableStateOf<String?>(null) }
+        var pickCommune by remember { mutableStateOf(false) }
 
         fun doSearch() {
             if (query.trim().length < 2 || searching) return
             searching = true; searched = true
             scope.launch {
-                results = try { CadastralLocalSource.searchOwner(context, query) }
-                          catch (e: Throwable) { emptyList() }
+                results = try {
+                    CadastralLocalSource.searchOwner(
+                        context, query, communeFilter = communeFilter
+                    )
+                } catch (e: Throwable) { emptyList() }
                 searching = false
             }
         }
@@ -245,40 +252,112 @@ fun OwnerSearchButton(
                         }
                     }
                     Spacer(Modifier.height(8.dp))
+
+                    // ── Phạm vi tìm: toàn bộ dữ liệu hay 1 xã ──
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Phạm vi:", style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.width(8.dp))
+                        FilterChip(
+                            selected = communeFilter == null,
+                            onClick = { communeFilter = null; searched = false },
+                            label = { Text("Toàn bộ", fontSize = 12.sp) }
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        FilterChip(
+                            selected = communeFilter != null,
+                            onClick = { pickCommune = true },
+                            label = {
+                                Text(
+                                    communeFilter?.let { slug ->
+                                        CadastralCloudSource.COMMUNES
+                                            .firstOrNull { it.first == slug }?.second ?: slug
+                                    } ?: "Chọn xã…",
+                                    fontSize = 12.sp
+                                )
+                            }
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+
                     if (searching)
                         Text("Đang quét dữ liệu (có thể vài giây)…", style = MaterialTheme.typography.bodySmall)
                     else if (searched && results.isEmpty())
                         Text("Không tìm thấy tên chủ khớp.", style = MaterialTheme.typography.bodySmall)
-                    // KHÔNG lồng cuộn dọc trong AlertDialog (gây crash). Dialog tự cuộn; giới hạn 25 dòng.
-                    if (results.size > 25)
-                        Text("Nhiều kết quả — hiển thị 25 đầu, gõ thêm để lọc.",
+                    if (results.isNotEmpty())
+                        Text("${results.size} kết quả — vuốt để xem thêm",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    results.take(25).forEach { hit ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.setOfflineMode(true)
-                                    viewModel.loadCadastralSheet(hit.commune, "${hit.to}/${hit.thua}")
-                                    show = false
-                                }
-                                .padding(vertical = 8.dp)
-                        ) {
-                            Text(hit.chu, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "${hit.communeName} — Tờ ${hit.to}, Thửa ${hit.thua}" +
-                                    (if (hit.dienTich.isNotBlank()) " • ${hit.dienTich} m²" else ""),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            HorizontalDivider()
+
+                    // Danh sách kết quả CUỘN ĐƯỢC.
+                    // Dùng Column + verticalScroll và GIỚI HẠN CHIỀU CAO (heightIn) —
+                    // KHÔNG dùng LazyColumn trong AlertDialog (chiều cao vô hạn → crash).
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 380.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        results.forEach { hit ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.setOfflineMode(true)
+                                        viewModel.loadCadastralSheet(hit.commune, "${hit.to}/${hit.thua}")
+                                        show = false
+                                    }
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                Text(hit.chu, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "${hit.communeName} — Tờ ${hit.to}, Thửa ${hit.thua}" +
+                                        (if (hit.dienTich.isNotBlank()) " • ${hit.dienTich} m²" else ""),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                HorizontalDivider()
+                            }
                         }
                     }
                 }
             },
             confirmButton = { TextButton(onClick = { show = false }) { Text("Đóng") } }
         )
+
+        // ── Hộp chọn xã để giới hạn phạm vi tìm ──
+        if (pickCommune) {
+            AlertDialog(
+                onDismissRequest = { pickCommune = false },
+                title = { Text("Chọn xã/phường") },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        CadastralCloudSource.COMMUNES.forEach { (slug, name) ->
+                            Text(
+                                name,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        communeFilter = slug
+                                        searched = false
+                                        pickCommune = false
+                                    }
+                                    .padding(vertical = 10.dp),
+                                fontWeight = if (communeFilter == slug) FontWeight.Bold else FontWeight.Normal,
+                                color = if (communeFilter == slug) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface
+                            )
+                            HorizontalDivider()
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { pickCommune = false }) { Text("Đóng") } }
+            )
+        }
     }
 }
 

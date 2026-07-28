@@ -36,10 +36,40 @@ object ReceiverWebControl {
     private const val TIMEOUT_MS = 8_000
 
     /**
-     * Mô tả một lệnh web.
-     * @param path đường dẫn sau host, bắt đầu bằng "/" (chưa gồm urlStringId và "_")
+     * Mô tả một lệnh web. Mỗi hãng một kiểu nên phải tham số hoá đủ.
+     *
+     * @param path      đường dẫn sau host, bắt đầu bằng "/"
+     * @param method    GET hoặc POST
+     * @param scheme    "https" (Sinov/M6 Pro) hoặc "http" (ComNav/T30)
+     * @param authQuery true = gắn ?urlStringId=<user>&_=<ts> (kiểu Sinov).
+     *                  false = không gắn gì (kiểu ComNav, xác thực bằng cookie)
+     * @param cookie    chuỗi Cookie nếu máy dùng phiên đăng nhập; null = không gửi
      */
-    data class WebCommand(val path: String, val method: String = "GET")
+    data class WebCommand(
+        val path      : String,
+        val method    : String  = "GET",
+        val scheme    : String  = "https",
+        val authQuery : Boolean = true,
+        val cookie    : String? = null
+    )
+
+    // ── ComNav T30 (web HTTP, POST, cookie phiên) ────────────
+    /**
+     * Khởi động lại T30. Bắt được từ web máy:
+     *   POST http://192.168.1.8/cgi-bin/reboot.cgi   (Content-Length: 0)
+     *
+     * Máy có gửi kèm Cookie phiên. Nếu CGI không kiểm tra cookie thì gọi trực tiếp
+     * vẫn chạy; nếu trả 401/403 thì cần bắt thêm request đăng nhập.
+     */
+    val T30_REBOOT = WebCommand(
+        path      = "/cgi-bin/reboot.cgi",
+        method    = "POST",
+        scheme    = "http",
+        authQuery = false
+    )
+
+    /** Địa chỉ web hay gặp của T30 (thử lần lượt nếu gateway không phải máy thu). */
+    val T30_HOST_CANDIDATES = listOf("192.168.1.8", "192.168.1.1")
 
     /** Khởi động lại máy thu — máy boot lại, mất kết nối ~30 giây. */
     val REBOOT = WebCommand("/reboot_system.cmd")
@@ -79,8 +109,9 @@ object ReceiverWebControl {
         user    : String = "admin"
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            val ts  = System.currentTimeMillis()
-            val url = URL("https://$host${cmd.path}?urlStringId=$user&_=$ts")
+            val query = if (cmd.authQuery)
+                "?urlStringId=$user&_=${System.currentTimeMillis()}" else ""
+            val url = URL("${cmd.scheme}://$host${cmd.path}$query")
 
             // QUAN TRỌNG: ép request đi qua WiFi.
             // Khi NTRIP chạy, app đã bind process sang 4G → kết nối mặc định
@@ -100,9 +131,16 @@ object ReceiverWebControl {
                 setRequestProperty("Accept", "application/json, text/javascript, */*; q=0.01")
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("X-Requested-With", "XMLHttpRequest")
-                setRequestProperty("Referer", "https://$host/pc/WebForm/GnssSet/GnssReset.html")
+                setRequestProperty("Referer", "${cmd.scheme}://$host/")
                 setRequestProperty("Cache-Control", "no-cache")
+                setRequestProperty("Origin", "${cmd.scheme}://$host")
+                cmd.cookie?.let { setRequestProperty("Cookie", it) }
+                if (cmd.method == "POST") {
+                    doOutput = true
+                    setFixedLengthStreamingMode(0)   // Content-Length: 0
+                }
             }
+            if (cmd.method == "POST") conn.outputStream.close()
 
             val code = conn.responseCode
             val text = runCatching {
@@ -124,6 +162,32 @@ object ReceiverWebControl {
     /** Khởi động lại máy thu qua WiFi. */
     suspend fun reboot(context: Context, host: String, user: String = "admin") =
         send(context, host, REBOOT, user)
+
+    /**
+     * Khởi động lại ComNav T30 qua WiFi.
+     *
+     * T30 không đặt ở gateway như M6 Pro (web thường ở 192.168.1.8), nên thử
+     * lần lượt: gateway hiện tại → các địa chỉ hay gặp.
+     *
+     * @param cookie chuỗi Cookie phiên nếu máy yêu cầu đăng nhập (thường không cần).
+     */
+    suspend fun rebootT30(
+        context : Context,
+        gateway : String? = null,
+        cookie  : String? = null
+    ): Result<String> {
+        val hosts = (listOfNotNull(gateway) + T30_HOST_CANDIDATES).distinct()
+        var last: Throwable? = null
+        for (h in hosts) {
+            val r = send(context, h, T30_REBOOT.copy(cookie = cookie))
+            if (r.isSuccess) {
+                Log.d(TAG, "T30 reboot OK tại $h")
+                return r
+            }
+            last = r.exceptionOrNull()
+        }
+        return Result.failure(last ?: Exception("Không tìm thấy T30 trong mạng"))
+    }
 
     /**
      * Đọc DUNG LƯỢNG PIN máy thu (%).
