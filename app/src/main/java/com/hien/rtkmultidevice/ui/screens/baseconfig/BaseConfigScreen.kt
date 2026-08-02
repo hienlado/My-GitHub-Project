@@ -77,6 +77,7 @@ fun BaseConfigScreen(
                         BaseDevice.entries.forEach { dev ->
                             val lbl = when (dev) {
                                 BaseDevice.COMNAV_T30 -> "ComNav T30"
+                                BaseDevice.SINOV_M6   -> "Sinov M6 Pro"
                                 BaseDevice.STEC -> "STEC"
                                 BaseDevice.GENERIC -> "Khác"
                             }
@@ -289,9 +290,10 @@ fun BaseConfigScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Khởi động lại máy thu") }
 
-                        // T30 không có lệnh tắt nguồn (web chỉ có Reboot/Factory)
-                        val isT30 = BaseDevice.from(config.deviceType) == BaseDevice.COMNAV_T30
-                        if (!isT30) {
+                        // Chỉ máy đã bắt được lệnh tắt nguồn mới hiện nút (hiện tại: Sinov M6 Pro).
+                        // T30 không có lệnh này — web máy chỉ có Reboot/Factory.
+                        val dev = BaseDevice.from(config.deviceType)
+                        if (dev.canPowerOff) {
                             Spacer(Modifier.height(6.dp))
                             OutlinedButton(
                                 onClick = { showWebPowerOff = true },
@@ -303,8 +305,14 @@ fun BaseConfigScreen(
                         } else {
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                "ComNav T30 chưa hỗ trợ tắt nguồn từ xa (web máy chỉ có Reboot). " +
-                                "Dùng nút nguồn trên máy để tắt.",
+                                when (dev) {
+                                    BaseDevice.COMNAV_T30 ->
+                                        "ComNav T30 chưa hỗ trợ tắt nguồn từ xa (web máy chỉ có Reboot). " +
+                                        "Dùng nút nguồn trên máy để tắt."
+                                    else ->
+                                        "Chưa có lệnh tắt nguồn cho máy này. Chọn đúng loại máy ở trên, " +
+                                        "hoặc dùng nút nguồn / trang cấu hình của máy."
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

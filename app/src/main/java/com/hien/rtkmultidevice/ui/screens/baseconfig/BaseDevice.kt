@@ -11,8 +11,12 @@ import java.util.Locale
  */
 enum class BaseDevice(val key: String, val displayName: String, val commandBased: Boolean) {
     COMNAV_T30("COMNAV_T30", "ComNav T30 (lệnh SinoGNSS)", true),
+    SINOV_M6("SINOV_M6", "Sinov M6 Pro (web HTTPS)", false),
     STEC("STEC", "STEC (web 192.168.10.1)", false),
     GENERIC("GENERIC", "Máy khác / thủ công", false);
+
+    /** Máy hỗ trợ TẮT NGUỒN từ xa (qua lệnh web đã bắt được). */
+    val canPowerOff: Boolean get() = this == SINOV_M6
 
     companion object {
         fun from(key: String): BaseDevice = entries.firstOrNull { it.key == key } ?: COMNAV_T30
@@ -64,8 +68,9 @@ enum class BaseDevice(val key: String, val displayName: String, val commandBased
      */
     fun restartCommands(): List<String> = when (this) {
         COMNAV_T30 -> listOf("RESET")
-        STEC       -> emptyList()   // STEC: khởi động lại qua trang web 192.168.10.1
-        GENERIC    -> emptyList()
+        // Các máy còn lại khởi động lại qua LỆNH WEB (ReceiverWebControl), không qua serial:
+        //   Sinov M6 Pro → GET /reboot_system.cmd  •  STEC → web 192.168.10.1
+        SINOV_M6, STEC, GENERIC -> emptyList()
     }
 
     /** Máy có hỗ trợ khởi động lại bằng lệnh không. */
@@ -109,6 +114,13 @@ enum class BaseDevice(val key: String, val displayName: String, val commandBased
             "• Bình sai TB → FIX AUTO.\n" +
             "• Đổi COM2 cho khớp cổng phát cải chính (radio/datalink) của bạn.\n" +
             "• SAVECONFIG để lưu vào máy. KIỂM CHỨNG cú pháp với tài liệu T30 trước khi dùng."
+        SINOV_M6 ->
+            "Sinov M6 Pro cấu hình qua web (HTTPS):\n" +
+            "1. Nối WiFi của máy (tên = GNSS-<số series>) → https://192.168.1.1 (admin/password).\n" +
+            "2. Receiver Configuration → Reference Station Settings: chọn chế độ Base, nhập toạ độ WGS-84 ở trên.\n" +
+            "3. I/O Settings → TCP Server: Protocol=TCP, Port 9901, Differential Data=RTCM3.2.\n" +
+            "4. Nhập chiều cao anten = ${d(c.antennaHeight, 3)} m.\n\n" +
+            "App điều khiển được máy này qua lệnh web: KHỞI ĐỘNG LẠI và TẮT NGUỒN."
         STEC ->
             "STEC cấu hình qua web:\n" +
             "1. Nối WiFi hotspot của máy (tên = số series) → http://192.168.10.1 (admin/password).\n" +
