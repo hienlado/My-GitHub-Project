@@ -17,7 +17,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import android.widget.Toast
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileDownload
@@ -54,6 +58,126 @@ import com.hien.rtkmultidevice.export.PointFileFormat
  *   • Properties: xem + sửa thông tin điểm (chạm vào điểm)
  *   • Xoá các điểm đã chọn
  */
+/**
+ * ParcelVertexPanel — Ngăn "Đỉnh thửa": danh sách đỉnh lấy từ bản đồ địa chính.
+ *
+ * Ba kiểu định vị:
+ *   • Chạm 1 đỉnh            → cắm mốc ĐIỂM
+ *   • Chọn đúng 2 đỉnh       → định vị TUYẾN theo cạnh nối 2 đỉnh đó
+ *   • Nút "Cả đường bao"     → định vị theo toàn bộ chu vi thửa
+ *
+ * Dữ liệu KHÔNG lưu vào Room và KHÔNG lẫn vào danh sách điểm đo.
+ */
+@Composable
+private fun ParcelVertexPanel(
+    modifier           : Modifier = Modifier,
+    onNavigateStakeout : (() -> Unit)? = null
+) {
+    val vm: ParcelVerticesViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val vertices   by vm.vertices.collectAsStateWithLifecycle()
+    val parcelName by vm.parcelName.collectAsStateWithLifecycle()
+    val isClosed   by vm.isClosed.collectAsStateWithLifecycle()
+    val context    = LocalContext.current
+
+    // Chọn tối đa 2 đỉnh để tạo cạnh
+    var picked by remember { mutableStateOf<List<Int>>(emptyList()) }
+
+    fun go(msg: String) {
+        // Không có đường điều hướng thì báo rõ để người dùng tự mở màn Cắm mốc
+        val full = if (onNavigateStakeout != null) msg else "$msg — mở màn Cắm mốc để bắt đầu"
+        Toast.makeText(context, full, Toast.LENGTH_SHORT).show()
+        onNavigateStakeout?.invoke()
+    }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (vertices.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    "Chưa có đỉnh thửa.\nTrên Bản đồ: chạm thửa → Bảng toạ độ đỉnh → \"Gửi sang Danh sách\".",
+                    fontSize = 13.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            return@Column
+        }
+
+        // Đầu ngăn: tên thửa + hành động tuyến
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(parcelName.ifBlank { "Thửa" }, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    if (picked.size == 2) "Đã chọn 2 đỉnh — định vị theo cạnh"
+                    else "${vertices.size} đỉnh • chạm để cắm mốc điểm, chọn 2 đỉnh để định vị cạnh",
+                    fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            TextButton(onClick = { vm.clear(); picked = emptyList() }) { Text("Xoá") }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = {
+                    val a = vertices.firstOrNull { it.index == picked.getOrNull(0) }
+                    val b = vertices.firstOrNull { it.index == picked.getOrNull(1) }
+                    if (a != null && b != null) {
+                        vm.stakeoutEdge(a, b); go("Định vị cạnh ${a.label}→${b.label}")
+                    }
+                },
+                enabled = picked.size == 2,
+                modifier = Modifier.weight(1f)
+            ) { Text("Định vị cạnh", fontSize = 12.sp) }
+
+            OutlinedButton(
+                onClick = { vm.stakeoutBoundary(); go("Định vị toàn bộ đường bao") },
+                enabled = vertices.size >= 2,
+                modifier = Modifier.weight(1f)
+            ) { Text(if (isClosed) "Cả đường bao" else "Cả tuyến", fontSize = 12.sp) }
+        }
+
+        HorizontalDivider(Modifier.padding(top = 6.dp))
+
+        LazyColumn(Modifier.fillMaxSize()) {
+            items(vertices, key = { it.index }) { v ->
+                val sel = v.index in picked
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { vm.stakeoutPoint(v); go("Cắm mốc ${v.label}") }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = sel,
+                        onCheckedChange = {
+                            picked = when {
+                                sel              -> picked - v.index
+                                picked.size < 2  -> picked + v.index
+                                else             -> listOf(picked[1], v.index)  // giữ 2 đỉnh gần nhất
+                            }
+                        }
+                    )
+                    Text(v.label, Modifier.width(46.dp), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Column(Modifier.weight(1f)) {
+                        Text("X %.3f".format(v.northing), fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                        Text("Y %.3f".format(v.easting), fontSize = 12.sp,
+                             fontFamily = FontFamily.Monospace,
+                             color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.primary)
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun EnhancedPointListTab(
@@ -65,7 +189,9 @@ fun EnhancedPointListTab(
     onDeleteMany : (List<SurveyPoint>) -> Unit,
     onSwapXY     : (List<SurveyPoint>) -> Unit,
     onImportFile : (Uri, PointFileFormat) -> Unit,
-    onExport     : (PointFileFormat, List<SurveyPoint>?) -> Unit
+    onExport     : (PointFileFormat, List<SurveyPoint>?) -> Unit,
+    /** Mở màn Cắm mốc sau khi đặt mục tiêu từ ngăn "Đỉnh thửa" (null = không điều hướng) */
+    onNavigateStakeout : (() -> Unit)? = null
 ) {
     // ── State ────────────────────────────────────────────────
     var searchQuery   by remember { mutableStateOf("") }
@@ -77,6 +203,10 @@ fun EnhancedPointListTab(
     var showExportFmt by remember { mutableStateOf(false) }
     var showDeleteCfm by remember { mutableStateOf(false) }
     var pendingImportFmt by remember { mutableStateOf<PointFileFormat?>(null) }
+    // Ngăn "Đỉnh thửa" — dữ liệu thiết kế lấy từ bản đồ, tách khỏi điểm đo
+    var vertexMode by remember { mutableStateOf(false) }
+    val parcelVm: ParcelVerticesViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val parcelVertices by parcelVm.vertices.collectAsStateWithLifecycle()
 
     // File picker cho Import — format đã chọn trước đó (pendingImportFmt)
     val importLauncher = rememberLauncherForActivityResult(
@@ -139,6 +269,21 @@ fun EnhancedPointListTab(
             FilterChipItem("Float (${points.count { it.fixQuality == 5 }})", fixFilter == 5, Color(0xFF558B2F)) { fixFilter = if (fixFilter == 5) null else 5 }
             FilterChipItem("Single (${points.count { it.fixQuality in 1..2 }})", fixFilter == 1, Color(0xFFF57F17)) { fixFilter = if (fixFilter == 1) null else 1 }
             FilterChipItem("Import (${points.count { it.fixQuality == 0 }})", fixFilter == 0, Color(0xFF6D4C41)) { fixFilter = if (fixFilter == 0) null else 0 }
+            // Ngăn RIÊNG cho đỉnh thửa lấy từ bản đồ — không trộn vào điểm đo
+            FilterChipItem(
+                "Đỉnh thửa (${parcelVertices.size})",
+                vertexMode,
+                Color(0xFF00838F)
+            ) { vertexMode = !vertexMode }
+        }
+
+        // ── Ngăn Đỉnh thửa: thay thế danh sách điểm khi được bật ──
+        if (vertexMode) {
+            ParcelVertexPanel(
+                modifier           = Modifier.weight(1f),
+                onNavigateStakeout = onNavigateStakeout
+            )
+            return@Column
         }
 
         // ── Thanh công cụ ─────────────────────────────────────

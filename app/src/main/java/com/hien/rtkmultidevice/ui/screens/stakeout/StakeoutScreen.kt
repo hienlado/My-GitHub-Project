@@ -341,9 +341,25 @@ fun StakeoutScreen(
             is StakeoutResult.InvalidCoord -> { /* nothing */ }
             is StakeoutResult.Active -> {
                 if (r.arrived) {
-                    // Đã đến nơi — hiển thị ở giữa
-                    Box(modifier = Modifier.align(Alignment.Center)) {
-                        ArrivedBanner(r)
+                    // Vào trong bán kính chấp nhận (0.5 m) — KHÔNG ẩn hướng nữa.
+                    // Chuyển sang BỌT THUỶ để cắm mốc tinh, vẫn chỉ hướng mục tiêu,
+                    // tinh chỉnh tiếp tới mức vi sai 0.02 m rồi mới chốt vị trí.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .offset {
+                                androidx.compose.ui.unit.IntOffset(
+                                    compassOffset.x.toInt(), compassOffset.y.toInt()
+                                )
+                            }
+                            .pointerInput(Unit) {
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    compassOffset += dragAmount
+                                }
+                            }
+                    ) {
+                        FineBubbleCard(r, deviceHeading)
                     }
                 } else {
                     // La bàn + khoảng cách — KÉO THẢ tự do đến vị trí bất kỳ
@@ -758,6 +774,129 @@ private fun TargetInputCard(
  *
  * Cách dùng: xoay thiết bị đến khi kim đỏ trỏ thẳng lên → đi thẳng về phía trước.
  */
+/**
+ * FineBubbleCard — BỌT THUỶ cắm mốc tinh (dùng khi đã vào trong bán kính chấp nhận).
+ *
+ * Vì sao cần: trước đây vào trong 0.5 m thì la bàn biến mất, mất luôn chỉ hướng,
+ * trong khi người đo còn phải tinh chỉnh tiếp tới ~0.02 m mới chốt vị trí.
+ *
+ * Cách đọc — giống ống bọt thuỷ:
+ *   • Vòng tròn lớn  = bán kính chấp nhận (thường 0.5 m)
+ *   • Các vòng trong = 1/2 và 1/5 bán kính (mốc ước lượng nhanh)
+ *   • Vòng xanh nhỏ giữa tâm = ngưỡng ĐẠT 0.02 m
+ *   • GIỌT NƯỚC = vị trí mục tiêu so với đầu đo; mũi giọt CHỈ VỀ HƯỚNG phải dịch tới.
+ *     Đưa giọt vào giữa vòng xanh là đạt → chốt điểm.
+ *
+ * Giọt xoay theo hướng thiết bị (như la bàn) nên cứ đi theo mũi giọt.
+ */
+@Composable
+private fun FineBubbleCard(
+    result        : StakeoutResult.Active,
+    deviceHeading : Float?
+) {
+    /** Ngưỡng vi sai coi như ĐẠT (m). */
+    val fineTol = 0.02
+
+    val animAzimuth by animateFloatAsState(
+        targetValue = result.azimuthDeg.toFloat(),
+        animationSpec = tween(200, easing = LinearEasing), label = "fineAz"
+    )
+    val animHeading by animateFloatAsState(
+        targetValue = deviceHeading ?: 0f,
+        animationSpec = tween(150, easing = LinearEasing), label = "fineHd"
+    )
+    // Hướng mục tiêu trên màn hình = azimuth − hướng thiết bị
+    val theta = Math.toRadians((animAzimuth - animHeading).toDouble())
+
+    val ok        = result.distanceM <= fineTol
+    val accentCol = if (ok) Color(0xFF00E676) else Color(0xFFFFC400)   // xanh lá / hổ phách
+
+    Surface(
+        modifier = Modifier.size(180.dp),
+        shape    = androidx.compose.foundation.shape.CircleShape,
+        color    = Color.Black.copy(alpha = 0.55f),
+        border   = androidx.compose.foundation.BorderStroke(
+            2.dp, if (ok) accentCol else Color.White.copy(alpha = 0.35f)
+        )
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val cx   = size.width / 2f
+                val cy   = size.height / 2f
+                val maxR = size.width / 2f - 16f
+
+                // ── Các vòng chia của "ống bọt thuỷ" ──
+                listOf(1f, 0.5f, 0.2f).forEach { k ->
+                    drawCircle(
+                        color  = Color.White.copy(alpha = 0.22f),
+                        radius = maxR * k,
+                        center = Offset(cx, cy),
+                        style  = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f)
+                    )
+                }
+
+                // ── Vòng ĐẠT (0.02 m) — luôn đủ lớn để nhìn thấy ──
+                val okR = ((fineTol / result.acceptRadius) * maxR).toFloat().coerceAtLeast(10f)
+                drawCircle(
+                    color  = accentCol.copy(alpha = if (ok) 0.9f else 0.5f),
+                    radius = okR,
+                    center = Offset(cx, cy),
+                    style  = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f)
+                )
+
+                // ── GIỌT NƯỚC: lệch khỏi tâm theo tỉ lệ sai số còn lại ──
+                val ratio = (result.distanceM / result.acceptRadius).coerceIn(0.0, 1.0)
+                val d     = (ratio * maxR).toFloat()
+                val px    = cx + d * kotlin.math.sin(theta).toFloat()
+                val py    = cy - d * kotlin.math.cos(theta).toFloat()
+                val dropR = 15f
+
+                // Đuôi giọt kéo về phía tâm → tạo hình giọt nước và chỉ hướng cần dịch
+                if (d > dropR * 0.6f) {
+                    val tail = androidx.compose.ui.graphics.Path().apply {
+                        val ux = (cx - px) / d          // vector đơn vị hướng về tâm
+                        val uy = (cy - py) / d
+                        val nx = -uy; val ny = ux       // pháp tuyến
+                        moveTo(px + nx * dropR * 0.85f, py + ny * dropR * 0.85f)
+                        lineTo(px + ux * dropR * 2.1f,  py + uy * dropR * 2.1f)   // mũi nhọn
+                        lineTo(px - nx * dropR * 0.85f, py - ny * dropR * 0.85f)
+                        close()
+                    }
+                    drawPath(tail, accentCol)
+                }
+                // Thân giọt
+                drawCircle(color = accentCol, radius = dropR, center = Offset(px, py))
+                drawCircle(
+                    color  = Color.White.copy(alpha = 0.9f),
+                    radius = dropR,
+                    center = Offset(px, py),
+                    style  = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+                )
+                // Chấm tâm bia
+                drawCircle(Color.White, radius = 3f, center = Offset(cx, cy))
+            }
+
+            // ── Số liệu ở giữa ──
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    if (ok) "ĐẠT" else "TINH CHỈNH",
+                    color = accentCol, fontSize = 11.sp, fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "%.3f m".format(result.distanceM),
+                    color = Color.White, fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    "ΔB %+.3f  ΔĐ %+.3f".format(result.dNorthingM, result.dEastingM),
+                    color = Color.White.copy(alpha = 0.75f),
+                    fontSize = 9.sp, fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun CompassCardCompact(
     result        : StakeoutResult.Active,

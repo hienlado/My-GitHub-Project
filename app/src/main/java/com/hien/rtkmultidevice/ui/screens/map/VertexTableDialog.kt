@@ -47,6 +47,8 @@ fun VertexTableDialog(
     currentNorthing : Double? = null,
     currentEasting  : Double? = null,
     onPick          : (label: String, northing: Double, easting: Double) -> Unit,
+    /** Gửi toàn bộ đỉnh sang ngăn "Đỉnh thửa" ở Danh sách (null = ẩn nút) */
+    onSendToList    : (() -> Unit)? = null,
     onDismiss       : () -> Unit
 ) {
     val typeLabel = when (feature.type) {
@@ -149,7 +151,15 @@ fun VertexTableDialog(
                 }
             }
         },
-        confirmButton = {},
+        confirmButton = {
+            // Đưa toàn bộ đỉnh sang ngăn "Đỉnh thửa" trong Danh sách để dùng
+            // cho định vị điểm HOẶC định vị tuyến (2 đỉnh / cả đường bao).
+            if (onSendToList != null && feature.rawPoints.size >= 2) {
+                TextButton(onClick = { onSendToList(); onDismiss() }) {
+                    Text("Gửi sang Danh sách")
+                }
+            }
+        },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Đóng") }
         }

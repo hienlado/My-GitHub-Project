@@ -458,6 +458,10 @@ fun MapScreen(
                 // hiển thị khoảng cách vuông góc đến tuyến.
                 viewModel.prepareStakeoutLine(f)
                 onNavigateStakeout?.invoke(0.0, 0.0, "")
+            },
+            onSendVertices = { f ->
+                selectedVecFeature = null
+                viewModel.sendVerticesToList(f)
             }
         )
     }
@@ -902,7 +906,9 @@ private fun VectorFeatureSheet(
     onDismiss      : () -> Unit,
     onStakeout     : (n: Double, e: Double, name: String) -> Unit,
     /** Định vị tuyến — chuyển sang Stakeout với chế độ khoảng cách vuông góc */
-    onStakeoutLine : (VectorLayerImporter.VectorFeature) -> Unit = {}
+    onStakeoutLine : (VectorLayerImporter.VectorFeature) -> Unit = {},
+    /** Gửi đỉnh của đối tượng sang ngăn "Đỉnh thửa" trong Danh sách */
+    onSendVertices : (VectorLayerImporter.VectorFeature) -> Unit = {}
 ) {
     // sheetState + scope để gọi hide() trước khi navigate
     // Không gọi trực tiếp selectedVecFeature=null + navigate trong onClick
@@ -1133,6 +1139,10 @@ private fun VectorFeatureSheet(
                     sheetState.hide()
                     onStakeout(n, e, lbl)
                 }
+            },
+            onSendToList = {
+                showVertexTable = false
+                onSendVertices(feature)
             },
             onDismiss = { showVertexTable = false }
         )

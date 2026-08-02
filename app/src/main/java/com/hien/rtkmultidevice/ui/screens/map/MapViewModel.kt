@@ -33,6 +33,7 @@ class MapViewModel @Inject constructor(
     private val projectRepo : IProjectRepository,
     private val surveyRepo  : ISurveyPointRepository,
     private val stakeoutTargetHolder: StakeoutTargetHolder,
+    private val parcelVerticesHolder: com.hien.rtkmultidevice.ui.screens.stakeout.ParcelVerticesHolder,
     private val vectorLayerHolder   : VectorLayerHolder,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
@@ -167,6 +168,23 @@ class MapViewModel @Inject constructor(
             name,
             feature.rawPoints.map { Pair(it.second, it.first) },
             featureId = feature.id   // để Stakeout highlight tuyến trên bản đồ
+        )
+    }
+
+    /**
+     * Gửi các đỉnh của một đối tượng vector sang ngăn "Đỉnh thửa" ở Danh sách.
+     * KHÔNG lưu vào Room — đây là dữ liệu thiết kế, không phải điểm đo.
+     * rawPoints VN-2000: (Easting, Northing) → đổi sang (N, E).
+     */
+    fun sendVerticesToList(
+        feature: com.hien.rtkmultidevice.ui.screens.map.VectorLayerImporter.VectorFeature
+    ) {
+        val name = feature.label.ifEmpty { "Thửa ${feature.id}" }
+        parcelVerticesHolder.setParcel(
+            name      = name,
+            points    = feature.rawPoints.map { Pair(it.second, it.first) },
+            featureId = feature.id,
+            closed    = feature.type == VectorLayerImporter.FeatureType.POLYGON
         )
     }
 

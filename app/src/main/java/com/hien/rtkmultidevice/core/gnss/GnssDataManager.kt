@@ -11,6 +11,7 @@ import com.hien.rtkmultidevice.core.gnss.ntrip.NtripClient
 import com.hien.rtkmultidevice.core.gnss.ntrip.NtripConfig
 import com.hien.rtkmultidevice.core.gnss.ntrip.NtripProxyServer
 import com.hien.rtkmultidevice.core.network.ReceiverWebControl
+import com.hien.rtkmultidevice.ui.screens.map.VectorLayerImporter
 import com.hien.rtkmultidevice.core.network.WifiInfoHelper
 import com.hien.rtkmultidevice.data.datastore.AppSettings
 import com.hien.rtkmultidevice.domain.model.GnssStatus
@@ -279,10 +280,27 @@ class GnssDataManager @Inject constructor(
                         adjusted
                     } else null
 
+                    // ── ĐỒNG BỘ vị trí hiển thị với VN-2000 ĐÃ HIỆU CHỈNH ──
+                    // Trước đây lat/lon giữ nguyên giá trị THÔ trong khi vn2000 đã cộng ΔN/ΔE,
+                    // nên trên bản đồ con trỏ máy thu lệch so với LỚP VECTOR đúng bằng lượng
+                    // hiệu chỉnh — dẫn tới "bản đồ và điểm stakeout lệch nhau".
+                    // Chuyển ngược VN-2000 đã hiệu chỉnh về lat/lon để MỌI thứ dùng chung
+                    // một hệ quy chiếu: marker, lớp vector, khoảng cách stakeout.
+                    var dispLat = gga.latitude
+                    var dispLon = gga.longitude
+                    if (vn2000 != null && coordSettings.calibEnabled &&
+                        (coordSettings.calibN != 0.0 || coordSettings.calibE != 0.0)
+                    ) {
+                        val cm = coordSettings.centralMeridianOverride
+                            ?: VectorLayerImporter.DEFAULT_CM
+                        VectorLayerImporter.inverseVn2000(vn2000.northing, vn2000.easting, cm)
+                            ?.let { g -> dispLat = g.latitude; dispLon = g.longitude }
+                    }
+
                     // Giữ nguyên speed/course/date/satellites từ state cũ
                     _gnssStatus.value = _gnssStatus.value.copy(
-                        latitude        = gga.latitude,
-                        longitude       = gga.longitude,
+                        latitude        = dispLat,
+                        longitude       = dispLon,
                         altitude        = groundAlt,
                         fixQuality      = gga.fixQuality,
                         satelliteCount  = gga.satelliteCount,
