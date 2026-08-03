@@ -1,0 +1,176 @@
+package com.hien.rtkmultidevice.report
+
+import android.util.Xml
+import org.xmlpull.v1.XmlPullParser
+import java.io.File
+import java.io.StringWriter
+
+/**
+ * BienBanXml — Ghi/đọc BIÊN BẢN BÀN GIAO MỐC GIỚI dưới dạng XML.
+ *
+ * Vì sao có bước XML:
+ *   Nhiều thông tin KHÔNG có trong dữ liệu địa chính (số phát hành GCN, ngày cấp,
+ *   địa chỉ chủ sử dụng, xưng hô ông/bà…). App xuất XML với phần đã biết được điền sẵn,
+ *   người dùng mở bằng trình soạn thảo bất kỳ để bổ sung/kiểm tra, rồi mới xuất PDF.
+ *
+ * File XML có thụt lề và chú thích tiếng Việt để dễ sửa bằng tay.
+ */
+object BienBanXml {
+
+    private const val NS = ""
+
+    // ══════════════════════════════════════════════════════════
+    // GHI
+    // ══════════════════════════════════════════════════════════
+
+    fun toXml(b: BienBan): String {
+        val w = StringWriter()
+        val s = Xml.newSerializer()
+        s.setOutput(w)
+        s.setFeature("http://xmlpull.org/v1/doc/features.html#indent-output", true)
+        s.startDocument("UTF-8", true)
+
+        s.comment(
+            "\n  BIÊN BẢN BÀN GIAO MỐC GIỚI — sửa nội dung trong file này rồi xuất PDF." +
+            "\n  Các ô để trống là thông tin app không có sẵn, cần điền tay.\n"
+        )
+        s.startTag(NS, "BienBanBanGiaoMocGioi")
+
+        tagGroup(s, "ThoiGian") {
+            text(s, "Ngay", b.ngay.toString())
+            text(s, "Thang", b.thang.toString())
+            text(s, "Nam", b.nam.toString())
+        }
+
+        tagGroup(s, "ThuaDat") {
+            text(s, "SoThua", b.soThua)
+            text(s, "SoTo", b.soTo)
+            text(s, "Xa", b.xa)
+            text(s, "Huyen", b.huyen)
+            text(s, "Tinh", b.tinh)
+            text(s, "DienTich", b.dienTich)
+            text(s, "LoaiDat", b.loaiDat)
+        }
+
+        tagGroup(s, "ChuSuDung") {
+            text(s, "HoTen", b.chuSuDung)
+            text(s, "XungHo", b.xungHo)          // ông / bà
+            text(s, "DiaChi", b.diaChiChu)
+        }
+
+        tagGroup(s, "GiayChungNhan") {
+            text(s, "SoPhatHanh", b.soPhatHanhGcn)
+            text(s, "NoiCap", b.noiCapGcn)
+            text(s, "NgayCap", b.ngayCapGcn)
+        }
+
+        tagGroup(s, "DonViDoDac") {
+            text(s, "Ten", b.donViTen)
+            text(s, "DaiDien", b.donViDaiDien)
+            text(s, "ChucVu", b.donViChucVu)
+            text(s, "DiaChi", b.donViDiaChi)
+            text(s, "VPDD", b.donViVpdd)
+        }
+
+        tagGroup(s, "HeToaDo") {
+            text(s, "KinhTuyenTruc", b.kinhTuyenTruc)
+            text(s, "MuiChieu", b.muiChieu)
+        }
+
+        s.startTag(NS, "BangKeMocGioi")
+        b.moc.forEach { m ->
+            s.startTag(NS, "Moc")
+            s.attribute(NS, "dinh", m.dinh)
+            text(s, "X", "%.2f".format(m.x))
+            text(s, "Y", "%.2f".format(m.y))
+            text(s, "KhoangCach", m.khoangCach?.let { "%.2f".format(it) } ?: "")
+            s.endTag(NS, "Moc")
+        }
+        s.endTag(NS, "BangKeMocGioi")
+
+        s.endTag(NS, "BienBanBanGiaoMocGioi")
+        s.endDocument()
+        return w.toString()
+    }
+
+    fun save(file: File, b: BienBan) {
+        file.parentFile?.mkdirs()
+        file.writeText(toXml(b), Charsets.UTF_8)
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ĐỌC
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * Đọc lại XML đã sửa. Dùng cách gom tất cả thẻ lá vào map theo
+     * "ThẻCha/ThẻCon" nên không phụ thuộc thứ tự người dùng sắp xếp.
+     */
+    fun load(file: File): BienBan? = runCatching {
+        val p = Xml.newPullParser()
+        p.setInput(file.inputStream(), "UTF-8")
+
+        val map  = HashMap<String, String>()
+        val mocs = ArrayList<BienBan.MocGioi>()
+        var parent = ""
+        var curMocDinh: String? = null
+        val curMoc = HashMap<String, String>()
+
+        var ev = p.eventType
+        while (ev != XmlPullParser.END_DOCUMENT) {
+            when (ev) {
+                XmlPullParser.START_TAG -> when (p.name) {
+                    "ThoiGian", "ThuaDat", "ChuSuDung", "GiayChungNhan",
+                    "DonViDoDac", "HeToaDo", "BangKeMocGioi" -> parent = p.name
+                    "Moc" -> { curMocDinh = p.getAttributeValue(NS, "dinh"); curMoc.clear() }
+                    else -> {
+                        val name = p.name
+                        val v = p.nextText().trim()
+                        if (curMocDinh != null) curMoc[name] = v else map["$parent/$name"] = v
+                    }
+                }
+                XmlPullParser.END_TAG -> if (p.name == "Moc") {
+                    mocs += BienBan.MocGioi(
+                        dinh       = curMocDinh ?: "${mocs.size + 1}",
+                        x          = curMoc["X"]?.toDoubleOrNull() ?: 0.0,
+                        y          = curMoc["Y"]?.toDoubleOrNull() ?: 0.0,
+                        khoangCach = curMoc["KhoangCach"]?.toDoubleOrNull()
+                    )
+                    curMocDinh = null
+                }
+            }
+            ev = p.next()
+        }
+
+        fun g(k: String) = map[k].orEmpty()
+        BienBan(
+            ngay  = g("ThoiGian/Ngay").toIntOrNull() ?: 1,
+            thang = g("ThoiGian/Thang").toIntOrNull() ?: 1,
+            nam   = g("ThoiGian/Nam").toIntOrNull() ?: 2026,
+            soThua = g("ThuaDat/SoThua"), soTo = g("ThuaDat/SoTo"),
+            xa = g("ThuaDat/Xa"), huyen = g("ThuaDat/Huyen"), tinh = g("ThuaDat/Tinh"),
+            dienTich = g("ThuaDat/DienTich"), loaiDat = g("ThuaDat/LoaiDat"),
+            chuSuDung = g("ChuSuDung/HoTen"), xungHo = g("ChuSuDung/XungHo").ifBlank { "ông" },
+            diaChiChu = g("ChuSuDung/DiaChi"),
+            soPhatHanhGcn = g("GiayChungNhan/SoPhatHanh"),
+            noiCapGcn = g("GiayChungNhan/NoiCap"), ngayCapGcn = g("GiayChungNhan/NgayCap"),
+            donViTen = g("DonViDoDac/Ten"), donViDaiDien = g("DonViDoDac/DaiDien"),
+            donViChucVu = g("DonViDoDac/ChucVu"), donViDiaChi = g("DonViDoDac/DiaChi"),
+            donViVpdd = g("DonViDoDac/VPDD"),
+            kinhTuyenTruc = g("HeToaDo/KinhTuyenTruc").ifBlank { "107°45'" },
+            muiChieu = g("HeToaDo/MuiChieu").ifBlank { "3°" },
+            moc = mocs
+        )
+    }.getOrNull()
+
+    // ── helper ───────────────────────────────────────────────
+    private inline fun tagGroup(
+        s: org.xmlpull.v1.XmlSerializer, name: String, body: () -> Unit
+    ) {
+        s.startTag(NS, name); body(); s.endTag(NS, name)
+    }
+
+    private fun text(s: org.xmlpull.v1.XmlSerializer, tag: String, value: String) {
+        s.startTag(NS, tag); s.text(value); s.endTag(NS, tag)
+    }
+}

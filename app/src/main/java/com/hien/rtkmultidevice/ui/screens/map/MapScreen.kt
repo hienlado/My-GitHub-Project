@@ -462,6 +462,10 @@ fun MapScreen(
             onSendVertices = { f ->
                 selectedVecFeature = null
                 viewModel.sendVerticesToList(f)
+            },
+            onExportBienBan = { f, toPdf ->
+                selectedVecFeature = null
+                viewModel.exportBienBan(f, toPdf)
             }
         )
     }
@@ -908,7 +912,9 @@ private fun VectorFeatureSheet(
     /** Định vị tuyến — chuyển sang Stakeout với chế độ khoảng cách vuông góc */
     onStakeoutLine : (VectorLayerImporter.VectorFeature) -> Unit = {},
     /** Gửi đỉnh của đối tượng sang ngăn "Đỉnh thửa" trong Danh sách */
-    onSendVertices : (VectorLayerImporter.VectorFeature) -> Unit = {}
+    onSendVertices : (VectorLayerImporter.VectorFeature) -> Unit = {},
+    /** Xuất Biên bản bàn giao mốc giới — toPdf=false: XML để sửa; true: PDF hoàn chỉnh */
+    onExportBienBan: (VectorLayerImporter.VectorFeature, Boolean) -> Unit = { _, _ -> }
 ) {
     // sheetState + scope để gọi hide() trước khi navigate
     // Không gọi trực tiếp selectedVecFeature=null + navigate trong onClick
@@ -1144,6 +1150,8 @@ private fun VectorFeatureSheet(
                 showVertexTable = false
                 onSendVertices(feature)
             },
+            onExportXml = { showVertexTable = false; onExportBienBan(feature, false) },
+            onExportPdf = { showVertexTable = false; onExportBienBan(feature, true) },
             onDismiss = { showVertexTable = false }
         )
     }

@@ -11,7 +11,12 @@ import com.hien.rtkmultidevice.domain.repository.ISurveyPointRepository
 import com.hien.rtkmultidevice.ui.screens.stakeout.StakeoutTargetHolder
 import android.content.Context
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.hien.rtkmultidevice.report.BienBan
+import com.hien.rtkmultidevice.report.BienBanPdf
+import com.hien.rtkmultidevice.report.BienBanSketch
+import com.hien.rtkmultidevice.report.BienBanXml
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,6 +37,7 @@ class MapViewModel @Inject constructor(
     private val gnssManager : GnssDataManager,
     private val projectRepo : IProjectRepository,
     private val surveyRepo  : ISurveyPointRepository,
+    private val appSettings         : com.hien.rtkmultidevice.data.datastore.AppSettings,
     private val stakeoutTargetHolder: StakeoutTargetHolder,
     private val parcelVerticesHolder: com.hien.rtkmultidevice.ui.screens.stakeout.ParcelVerticesHolder,
     private val vectorLayerHolder   : VectorLayerHolder,
@@ -186,6 +192,65 @@ class MapViewModel @Inject constructor(
             featureId = feature.id,
             closed    = feature.type == VectorLayerImporter.FeatureType.POLYGON
         )
+    }
+
+    // ── Biên bản bàn giao mốc giới ────────────────────────────
+    private val _reportFile = MutableStateFlow<String?>(null)
+    val reportFile: StateFlow<String?> = _reportFile.asStateFlow()
+    fun clearReportFile() { _reportFile.value = null }
+
+    /**
+     * Xuất BIÊN BẢN BÀN GIAO MỐC GIỚI cho thửa đang chọn.
+     *
+     * Quy trình theo yêu cầu: xuất XML để kiểm tra/sửa TRƯỚC, rồi mới xuất PDF.
+     * @param toPdf false = chỉ XML; true = đọc lại XML (nếu có) rồi dựng PDF A4 2 mặt.
+     */
+    fun exportBienBan(
+        feature: com.hien.rtkmultidevice.ui.screens.map.VectorLayerImporter.VectorFeature,
+        toPdf  : Boolean
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                val rpt = appSettings.reportSettingsFlow.first()
+                val cal = java.util.Calendar.getInstance()
+                // rawPoints VN-2000: (Easting, Northing) → (N, E)
+                val verts = feature.rawPoints.map { it.second to it.first }
+                val dir  = java.io.File(appContext.getExternalFilesDir(null), "BienBan")
+                val base = "BBMG-${feature.soThua.ifBlank { feature.label }.replace(Regex("[^A-Za-z0-9]"), "_")}"
+                val xmlF = java.io.File(dir, "$base.xml")
+
+                if (!toPdf) {
+                    val bb = BienBan(
+                        ngay = cal.get(java.util.Calendar.DAY_OF_MONTH),
+                        thang = cal.get(java.util.Calendar.MONTH) + 1,
+                        nam = cal.get(java.util.Calendar.YEAR),
+                        soThua = feature.soThua.ifBlank { feature.label },
+                        dienTich = feature.dienTich, loaiDat = feature.loaiDat,
+                        chuSuDung = feature.chuSuDung,
+                        donViTen = rpt.donViTen, donViDaiDien = rpt.donViDaiDien,
+                        donViChucVu = rpt.donViChucVu, donViDiaChi = rpt.donViDiaChi,
+                        donViVpdd = rpt.donViVpdd, noiCapGcn = rpt.noiCapGcn,
+                        moc = BienBan.buildMoc(verts)
+                    )
+                    BienBanXml.save(xmlF, bb)
+                    _reportFile.value = xmlF.absolutePath
+                } else {
+                    // Ưu tiên nội dung người dùng đã sửa trong XML
+                    val bb = BienBanXml.load(xmlF) ?: return@runCatching
+                    val others = vectorLayerHolder.layer.value?.features.orEmpty()
+                    val nbs = BienBanSketch.pickNeighbours(others, feature.id, verts)
+                    val pdfF = java.io.File(dir, "$base.pdf")
+                    BienBanPdf.export(pdfF, bb) { canvas, frame ->
+                        BienBanSketch.draw(
+                            canvas, frame, verts,
+                            BienBanSketch.ParcelLabel(bb.soThua, bb.dienTich, bb.loaiDat),
+                            nbs
+                        )
+                    }
+                    _reportFile.value = pdfF.absolutePath
+                }
+            }.onFailure { _reportFile.value = "LỖI: ${it.message}" }
+        }
     }
 
     // ── GNSS live ─────────────────────────────────────────────

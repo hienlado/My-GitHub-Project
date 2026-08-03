@@ -49,6 +49,14 @@ class AppSettings @Inject constructor(
         // ── Ghi nhớ để CẢNH BÁO khi có thay đổi ──────────────
         /** IP điện thoại lần gần nhất (máy thu trỏ RTK Client về IP này) */
         private val KEY_LAST_PHONE_IP  = stringPreferencesKey("last_phone_ip")
+
+        // ── Thông tin đơn vị đo đạc (in trên Biên bản bàn giao mốc giới) ──
+        private val KEY_RPT_TEN      = stringPreferencesKey("rpt_don_vi_ten")
+        private val KEY_RPT_DAIDIEN  = stringPreferencesKey("rpt_dai_dien")
+        private val KEY_RPT_CHUCVU   = stringPreferencesKey("rpt_chuc_vu")
+        private val KEY_RPT_DIACHI   = stringPreferencesKey("rpt_dia_chi")
+        private val KEY_RPT_VPDD     = stringPreferencesKey("rpt_vpdd")
+        private val KEY_RPT_NOICAP   = stringPreferencesKey("rpt_noi_cap_gcn")
         /** Mountpoint + tên đăng nhập + mật khẩu của lần NTRIP chạy được gần nhất */
         private val KEY_OK_MOUNT       = stringPreferencesKey("ntrip_ok_mount")
         private val KEY_OK_USER        = stringPreferencesKey("ntrip_ok_user")
@@ -133,6 +141,40 @@ class AppSettings @Inject constructor(
     /** Lưu cấu hình NTRIP mới. */
     // ── Ghi nhớ IP điện thoại (cho cảnh báo đổi IP) ─────────
     val lastPhoneIpFlow: Flow<String> = context.dataStore.data.map { it[KEY_LAST_PHONE_IP] ?: "" }
+
+    // ── Thông tin đơn vị đo đạc cho biên bản ────────────────
+    /** Nhập MỘT LẦN trong Cài đặt, mọi biên bản sau tự điền sẵn. */
+    data class ReportSettings(
+        val donViTen     : String = "",
+        val donViDaiDien : String = "",
+        val donViChucVu  : String = "",
+        val donViDiaChi  : String = "",
+        val donViVpdd    : String = "",
+        val noiCapGcn    : String = "Văn phòng đăng ký đất đai tỉnh Bà Rịa - Vũng Tàu"
+    )
+
+    val reportSettingsFlow: Flow<ReportSettings> = context.dataStore.data.map { p ->
+        ReportSettings(
+            donViTen     = p[KEY_RPT_TEN] ?: "",
+            donViDaiDien = p[KEY_RPT_DAIDIEN] ?: "",
+            donViChucVu  = p[KEY_RPT_CHUCVU] ?: "",
+            donViDiaChi  = p[KEY_RPT_DIACHI] ?: "",
+            donViVpdd    = p[KEY_RPT_VPDD] ?: "",
+            noiCapGcn    = p[KEY_RPT_NOICAP]
+                ?: "Văn phòng đăng ký đất đai tỉnh Bà Rịa - Vũng Tàu"
+        )
+    }
+
+    suspend fun saveReportSettings(r: ReportSettings) {
+        context.dataStore.edit { p ->
+            p[KEY_RPT_TEN]     = r.donViTen
+            p[KEY_RPT_DAIDIEN] = r.donViDaiDien
+            p[KEY_RPT_CHUCVU]  = r.donViChucVu
+            p[KEY_RPT_DIACHI]  = r.donViDiaChi
+            p[KEY_RPT_VPDD]    = r.donViVpdd
+            p[KEY_RPT_NOICAP]  = r.noiCapGcn
+        }
+    }
 
     suspend fun saveLastPhoneIp(ip: String) {
         context.dataStore.edit { it[KEY_LAST_PHONE_IP] = ip }

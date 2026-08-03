@@ -49,6 +49,10 @@ fun VertexTableDialog(
     onPick          : (label: String, northing: Double, easting: Double) -> Unit,
     /** Gửi toàn bộ đỉnh sang ngăn "Đỉnh thửa" ở Danh sách (null = ẩn nút) */
     onSendToList    : (() -> Unit)? = null,
+    /** Xuất Biên bản dạng XML để kiểm tra/sửa */
+    onExportXml     : (() -> Unit)? = null,
+    /** Xuất Biên bản PDF (sau khi XML đã hoàn chỉnh) */
+    onExportPdf     : (() -> Unit)? = null,
     onDismiss       : () -> Unit
 ) {
     val typeLabel = when (feature.type) {
@@ -152,11 +156,20 @@ fun VertexTableDialog(
             }
         },
         confirmButton = {
-            // Đưa toàn bộ đỉnh sang ngăn "Đỉnh thửa" trong Danh sách để dùng
-            // cho định vị điểm HOẶC định vị tuyến (2 đỉnh / cả đường bao).
-            if (onSendToList != null && feature.rawPoints.size >= 2) {
-                TextButton(onClick = { onSendToList(); onDismiss() }) {
-                    Text("Gửi sang Danh sách")
+            Row {
+                // Xuất biên bản: XML trước để kiểm tra/sửa, rồi mới PDF
+                if (onExportXml != null && feature.rawPoints.size >= 3) {
+                    TextButton(onClick = onExportXml) { Text("XML") }
+                }
+                if (onExportPdf != null && feature.rawPoints.size >= 3) {
+                    TextButton(onClick = onExportPdf) { Text("PDF") }
+                }
+                // Đưa toàn bộ đỉnh sang ngăn "Đỉnh thửa" trong Danh sách để dùng
+                // cho định vị điểm HOẶC định vị tuyến (2 đỉnh / cả đường bao).
+                if (onSendToList != null && feature.rawPoints.size >= 2) {
+                    TextButton(onClick = { onSendToList(); onDismiss() }) {
+                        Text("Gửi DS")
+                    }
                 }
             }
         },
