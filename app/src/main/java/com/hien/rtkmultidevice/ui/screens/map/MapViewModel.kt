@@ -247,7 +247,9 @@ class MapViewModel @Inject constructor(
                     val tmp = java.io.File(appContext.cacheDir, xmlNm)
                         .apply { writeText(xmlText, Charsets.UTF_8) }
                     val bb = BienBanXml.load(tmp)
-                        ?: throw IllegalStateException("$xmlNm sai định dạng")
+                        ?: throw IllegalStateException(
+                            "Không đọc được $xmlNm — ${BienBanXml.lastError ?: "sai định dạng"}"
+                        )
 
                     val others = vectorLayerHolder.layer.value?.features.orEmpty()
                     val nbs = BienBanSketch.pickNeighbours(others, feature.id, verts)

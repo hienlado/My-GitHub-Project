@@ -19,6 +19,10 @@ object BienBanXml {
 
     private const val NS = ""
 
+    /** Lý do đọc XML thất bại gần nhất — để báo lỗi cụ thể thay vì "sai định dạng". */
+    @Volatile var lastError: String? = null
+        private set
+
     // ══════════════════════════════════════════════════════════
     // GHI
     // ══════════════════════════════════════════════════════════
@@ -106,6 +110,13 @@ object BienBanXml {
      * Đọc lại XML đã sửa. Dùng cách gom tất cả thẻ lá vào map theo
      * "ThẻCha/ThẻCon" nên không phụ thuộc thứ tự người dùng sắp xếp.
      */
+    /** Các thẻ CHỨA thẻ con — tuyệt đối không được gọi nextText() lên chúng. */
+    private val CONTAINERS = setOf(
+        "BienBanBanGiaoMocGioi",          // thẻ gốc
+        "ThoiGian", "ThuaDat", "ChuSuDung", "GiayChungNhan",
+        "DonViDoDac", "HeToaDo", "BangKeMocGioi"
+    )
+
     fun load(file: File): BienBan? = runCatching {
         val p = Xml.newPullParser()
         p.setInput(file.inputStream(), "UTF-8")
@@ -119,13 +130,17 @@ object BienBanXml {
         var ev = p.eventType
         while (ev != XmlPullParser.END_DOCUMENT) {
             when (ev) {
-                XmlPullParser.START_TAG -> when (p.name) {
-                    "ThoiGian", "ThuaDat", "ChuSuDung", "GiayChungNhan",
-                    "DonViDoDac", "HeToaDo", "BangKeMocGioi" -> parent = p.name
-                    "Moc" -> { curMocDinh = p.getAttributeValue(NS, "dinh"); curMoc.clear() }
+                XmlPullParser.START_TAG -> when {
+                    // Thẻ gốc và các nhóm: chỉ ghi nhớ tên, KHÔNG đọc text
+                    p.name in CONTAINERS -> parent = p.name
+                    p.name == "Moc" -> {
+                        curMocDinh = p.getAttributeValue(NS, "dinh") ?: "${mocs.size + 1}"
+                        curMoc.clear()
+                    }
                     else -> {
+                        // Thẻ lá — bọc runCatching để một thẻ lạ không làm hỏng cả file
                         val name = p.name
-                        val v = p.nextText().trim()
+                        val v = runCatching { p.nextText().trim() }.getOrDefault("")
                         if (curMocDinh != null) curMoc[name] = v else map["$parent/$name"] = v
                     }
                 }
@@ -161,7 +176,9 @@ object BienBanXml {
             muiChieu = g("HeToaDo/MuiChieu").ifBlank { "3°" },
             moc = mocs
         )
-    }.getOrNull()
+    }.onSuccess { lastError = null }
+     .onFailure { lastError = "${it::class.simpleName}: ${it.message}" }
+     .getOrNull()
 
     // ── helper ───────────────────────────────────────────────
     private inline fun tagGroup(
