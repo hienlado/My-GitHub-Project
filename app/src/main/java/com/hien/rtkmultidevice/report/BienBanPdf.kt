@@ -149,11 +149,12 @@ object BienBanPdf {
 
         b.moc.forEach { m ->
             c.drawText(m.dinh,              (colX[0] + colX[1]) / 2f, y + 12f, cell)
-            c.drawText("%.2f".format(m.x),  (colX[1] + colX[2]) / 2f, y + 12f, cell)
-            c.drawText("%.2f".format(m.y),  (colX[2] + colX[3]) / 2f, y + 12f, cell)
+            // Locale.US để luôn dùng dấu CHẤM thập phân như mẫu biên bản
+            c.drawText("%.2f".format(java.util.Locale.US, m.x), (colX[1] + colX[2]) / 2f, y + 12f, cell)
+            c.drawText("%.2f".format(java.util.Locale.US, m.y), (colX[2] + colX[3]) / 2f, y + 12f, cell)
             // K/C ghi giữa 2 dòng như mẫu → đặt lệch xuống nửa dòng
             m.khoangCach?.let {
-                c.drawText("%.2f".format(it), (colX[3] + colX[4]) / 2f, y + 20f, cell)
+                c.drawText("%.2f".format(java.util.Locale.US, it), (colX[3] + colX[4]) / 2f, y + 20f, cell)
             }
             y += rowH
         }

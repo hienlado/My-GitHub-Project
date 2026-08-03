@@ -85,9 +85,12 @@ object BienBanXml {
         b.moc.forEach { m ->
             s.startTag(NS, "Moc")
             s.attribute(NS, "dinh", m.dinh)
-            text(s, "X", "%.2f".format(m.x))
-            text(s, "Y", "%.2f".format(m.y))
-            text(s, "KhoangCach", m.khoangCach?.let { "%.2f".format(it) } ?: "")
+            // LUÔN dùng Locale.US: máy đặt tiếng Việt sẽ ghi dấu PHẨY thập phân
+            // (1173361,78) khiến lúc đọc lại toDoubleOrNull() trả null → toạ độ = 0.00
+            text(s, "X", "%.2f".format(java.util.Locale.US, m.x))
+            text(s, "Y", "%.2f".format(java.util.Locale.US, m.y))
+            text(s, "KhoangCach",
+                m.khoangCach?.let { "%.2f".format(java.util.Locale.US, it) } ?: "")
             s.endTag(NS, "Moc")
         }
         s.endTag(NS, "BangKeMocGioi")
@@ -145,11 +148,13 @@ object BienBanXml {
                     }
                 }
                 XmlPullParser.END_TAG -> if (p.name == "Moc") {
+                    // Chấp nhận cả dấu phẩy thập phân do người dùng sửa tay
+                    fun num(s: String?) = s?.trim()?.replace(',', '.')?.toDoubleOrNull()
                     mocs += BienBan.MocGioi(
                         dinh       = curMocDinh ?: "${mocs.size + 1}",
-                        x          = curMoc["X"]?.toDoubleOrNull() ?: 0.0,
-                        y          = curMoc["Y"]?.toDoubleOrNull() ?: 0.0,
-                        khoangCach = curMoc["KhoangCach"]?.toDoubleOrNull()
+                        x          = num(curMoc["X"]) ?: 0.0,
+                        y          = num(curMoc["Y"]) ?: 0.0,
+                        khoangCach = num(curMoc["KhoangCach"])
                     )
                     curMocDinh = null
                 }
