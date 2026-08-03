@@ -130,6 +130,15 @@ fun MapScreen(
     }
     val ctx = androidx.compose.ui.platform.LocalContext.current
 
+    // ── Thông báo kết quả xuất Biên bản bàn giao mốc giới ──
+    val reportMsg by viewModel.reportFile.collectAsStateWithLifecycle()
+    LaunchedEffect(reportMsg) {
+        reportMsg?.let {
+            android.widget.Toast.makeText(ctx, it, android.widget.Toast.LENGTH_LONG).show()
+            viewModel.clearReportFile()
+        }
+    }
+
     // File picker
     val importFileLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
