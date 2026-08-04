@@ -10,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -35,6 +36,21 @@ class CoordSettingsViewModel @Inject constructor(
     fun setAntennaHeight(meters: Double) {
         _antennaHeight.value = meters
         viewModelScope.launch { appSettings.saveAntennaHeight(meters) }
+    }
+
+    // ── Thông tin đơn vị đo đạc (in trên Biên bản bàn giao mốc giới) ──
+    private val _report = MutableStateFlow(AppSettings.ReportSettings())
+    val report: StateFlow<AppSettings.ReportSettings> = _report.asStateFlow()
+
+    /** Cập nhật cục bộ (chưa lưu) — gọi khi gõ trong ô. */
+    fun updateReport(r: AppSettings.ReportSettings) { _report.value = r }
+
+    /** Lưu vĩnh viễn; mọi biên bản sau tự điền sẵn phần này. */
+    fun saveReport() {
+        viewModelScope.launch {
+            appSettings.saveReportSettings(_report.value)
+            _calibFeedback.value = "Đã lưu thông tin đơn vị đo đạc"
+        }
     }
 
     /** Toạ độ VN-2000 đo được hiện tại (đã gồm hiệu chỉnh nếu đang bật). */
@@ -85,7 +101,13 @@ class CoordSettingsViewModel @Inject constructor(
     val zones3Deg: List<ZoneInfo> = Vn2000Zone.ZONES_3DEG
     val zones6Deg: List<ZoneInfo> = Vn2000Zone.ZONES_6DEG
 
-    init { loadSettings() }
+    init {
+        loadSettings()
+        // Nạp thông tin đơn vị đã lưu (một lần, để không đè lên chữ đang gõ)
+        viewModelScope.launch {
+            _report.value = appSettings.reportSettingsFlow.first()
+        }
+    }
 
     private fun loadSettings() {
         viewModelScope.launch {

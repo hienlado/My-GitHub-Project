@@ -38,6 +38,7 @@ fun CoordSettingsScreen(
     val calibN          by viewModel.calibN.collectAsStateWithLifecycle()
     val calibE          by viewModel.calibE.collectAsStateWithLifecycle()
     val calibEnabled    by viewModel.calibEnabled.collectAsStateWithLifecycle()
+    val report          by viewModel.report.collectAsStateWithLifecycle()
     val calibFeedback   by viewModel.calibFeedback.collectAsStateWithLifecycle()
     val antennaHeight   by viewModel.antennaHeight.collectAsStateWithLifecycle()
 
@@ -207,6 +208,13 @@ fun CoordSettingsScreen(
                 onClearFeedback = { viewModel.clearCalibFeedback() }
             )
 
+            // ── 6. Thông tin đơn vị đo đạc (in trên Biên bản) ──
+            ReportInfoCard(
+                report   = report,
+                onChange = { viewModel.updateReport(it) },
+                onSave   = { viewModel.saveReport() }
+            )
+
             // ── Nút Lưu ──────────────────────────────────────
             Button(
                 onClick  = { viewModel.saveSettings(onNavigateBack) },
@@ -321,6 +329,7 @@ private fun CalibrationCard(
     calibN          : Double,
     calibE          : Double,
     calibEnabled    : Boolean,
+    // (tham số của CalibrationCard — giữ nguyên)
     feedback        : String?,
     onCompute       : (Double, Double) -> Unit,
     onToggle        : (Boolean) -> Unit,
@@ -396,6 +405,85 @@ private fun CalibrationCard(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
                 }
                 LaunchedEffect(msg) { kotlinx.coroutines.delay(4000); onClearFeedback() }
+            }
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════
+// ReportInfoCard — Thông tin ĐƠN VỊ ĐO ĐẠC in trên Biên bản
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Nhập MỘT LẦN tại đây; mọi Biên bản bàn giao mốc giới sau sẽ tự điền sẵn.
+ * Đây là phần cố định của đơn vị, không nên bắt gõ lại ở từng biên bản.
+ */
+@Composable
+private fun ReportInfoCard(
+    report   : com.hien.rtkmultidevice.data.datastore.AppSettings.ReportSettings,
+    onChange : (com.hien.rtkmultidevice.data.datastore.AppSettings.ReportSettings) -> Unit,
+    onSave   : () -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                "Đơn vị đo đạc (in trên Biên bản)",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                "Nhập một lần — mọi biên bản sau tự điền sẵn.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value = report.donViTen,
+                onValueChange = { onChange(report.copy(donViTen = it)) },
+                label = { Text("Tên đơn vị") },
+                singleLine = true, modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(6.dp))
+            Row {
+                OutlinedTextField(
+                    value = report.donViDaiDien,
+                    onValueChange = { onChange(report.copy(donViDaiDien = it)) },
+                    label = { Text("Đại diện") },
+                    singleLine = true, modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(6.dp))
+                OutlinedTextField(
+                    value = report.donViChucVu,
+                    onValueChange = { onChange(report.copy(donViChucVu = it)) },
+                    label = { Text("Chức vụ") },
+                    singleLine = true, modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            OutlinedTextField(
+                value = report.donViDiaChi,
+                onValueChange = { onChange(report.copy(donViDiaChi = it)) },
+                label = { Text("Địa chỉ") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(6.dp))
+            OutlinedTextField(
+                value = report.donViVpdd,
+                onValueChange = { onChange(report.copy(donViVpdd = it)) },
+                label = { Text("Văn phòng đại diện") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(6.dp))
+            OutlinedTextField(
+                value = report.noiCapGcn,
+                onValueChange = { onChange(report.copy(noiCapGcn = it)) },
+                label = { Text("Nơi cấp Giấy chứng nhận (mặc định)") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(10.dp))
+            Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
+                Text("Lưu thông tin đơn vị")
             }
         }
     }
