@@ -93,6 +93,27 @@ fun BienBanFormDialog(
             Column(
                 Modifier.fillMaxWidth().heightIn(max = 460.dp).verticalScroll(rememberScrollState())
             ) {
+                // ── Đơn vị đo đạc: CHỈ ĐỌC, sửa ở Cài đặt ──
+                // Một thông tin chỉ nên sửa ở MỘT nơi; ở đây chỉ hiển thị để
+                // người dùng biết ngay đã khai báo đủ chưa trước khi xuất.
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = if (dvTen.isBlank()) MaterialTheme.colorScheme.errorContainer
+                            else MaterialTheme.colorScheme.surfaceVariant,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Column(Modifier.padding(8.dp)) {
+                        Text("Đơn vị đo đạc", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (dvTen.isBlank())
+                                "CHƯA KHAI BÁO — vào Cài đặt toạ độ VN-2000 → mục \"Đơn vị đo đạc\""
+                            else "$dvTen • $dvDd${if (dvCv.isNotBlank()) " ($dvCv)" else ""}",
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+
                 // ── KHUNG CHỤP SƠ HOẠ ──
                 Text("Khung sơ hoạ — kéo để dời, chụm 2 ngón để phóng",
                     fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -182,16 +203,7 @@ fun BienBanFormDialog(
                     F(nam, { nam = it }, "Năm", Modifier.weight(1f))
                 }
 
-                // ── Đơn vị đo đạc (được ghi nhớ) ──
-                Sect("Đơn vị đo đạc — lưu lại cho lần sau")
-                F(dvTen, { dvTen = it }, "Tên đơn vị")
-                Row {
-                    F(dvDd, { dvDd = it }, "Đại diện", Modifier.weight(1f))
-                    Spacer(Modifier.width(6.dp))
-                    F(dvCv, { dvCv = it }, "Chức vụ", Modifier.weight(1f))
-                }
-                F(dvDc, { dvDc = it }, "Địa chỉ")
-                F(dvVp, { dvVp = it }, "VPĐD")
+                Spacer(Modifier.height(10.dp))
             }
         },
         confirmButton = {

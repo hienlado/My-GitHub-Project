@@ -245,9 +245,12 @@ class MapViewModel @Inject constructor(
     fun clearReportFile() { _reportFile.value = null }
 
     /** Thông tin đơn vị đo đạc đã lưu — dùng điền sẵn form biên bản. */
+    // Eagerly (KHÔNG dùng WhileSubscribed): giao diện chỉ đọc .value một lần khi mở
+    // form, không "lắng nghe" flow — dùng WhileSubscribed thì upstream không chạy
+    // và .value mãi là giá trị rỗng ⇒ biên bản mất thông tin đơn vị.
     val reportSettings: StateFlow<com.hien.rtkmultidevice.data.datastore.AppSettings.ReportSettings> =
         appSettings.reportSettingsFlow.stateIn(
-            viewModelScope, SharingStarted.WhileSubscribed(5_000),
+            viewModelScope, SharingStarted.Eagerly,
             com.hien.rtkmultidevice.data.datastore.AppSettings.ReportSettings()
         )
 
