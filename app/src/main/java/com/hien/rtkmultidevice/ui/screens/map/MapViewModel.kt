@@ -244,69 +244,91 @@ class MapViewModel @Inject constructor(
     val reportFile: StateFlow<String?> = _reportFile.asStateFlow()
     fun clearReportFile() { _reportFile.value = null }
 
+    /** Thông tin đơn vị đo đạc đã lưu — dùng điền sẵn form biên bản. */
+    val reportSettings: StateFlow<com.hien.rtkmultidevice.data.datastore.AppSettings.ReportSettings> =
+        appSettings.reportSettingsFlow.stateIn(
+            viewModelScope, SharingStarted.WhileSubscribed(5_000),
+            com.hien.rtkmultidevice.data.datastore.AppSettings.ReportSettings()
+        )
+
+    /** Nội dung biên bản điền sẵn từ dữ liệu thửa + cài đặt đơn vị. */
+    fun bienBanDefaults(
+        feature: com.hien.rtkmultidevice.ui.screens.map.VectorLayerImporter.VectorFeature
+    ): BienBan {
+        val rpt = reportSettings.value
+        val cal = java.util.Calendar.getInstance()
+        return BienBan(
+            ngay = cal.get(java.util.Calendar.DAY_OF_MONTH),
+            thang = cal.get(java.util.Calendar.MONTH) + 1,
+            nam = cal.get(java.util.Calendar.YEAR),
+            soThua = feature.soThua.ifBlank { feature.label },
+            dienTich = feature.dienTich, loaiDat = feature.loaiDat,
+            chuSuDung = feature.chuSuDung,
+            donViTen = rpt.donViTen, donViDaiDien = rpt.donViDaiDien,
+            donViChucVu = rpt.donViChucVu, donViDiaChi = rpt.donViDiaChi,
+            donViVpdd = rpt.donViVpdd, noiCapGcn = rpt.noiCapGcn,
+            moc = BienBan.buildMoc(feature.rawPoints.map { it.second to it.first })
+        )
+    }
+
+    /** Thửa giáp biên để vẽ nền sơ hoạ. */
+    fun neighboursOf(
+        feature: com.hien.rtkmultidevice.ui.screens.map.VectorLayerImporter.VectorFeature
+    ): List<BienBanSketch.NeighbourParcel> = BienBanSketch.pickNeighbours(
+        vectorLayerHolder.layer.value?.features.orEmpty(),
+        feature.id,
+        feature.rawPoints.map { it.second to it.first }
+    )
+
     /**
-     * Xuất BIÊN BẢN BÀN GIAO MỐC GIỚI cho thửa đang chọn.
+     * Xuất BIÊN BẢN từ nội dung người dùng đã nhập trong form.
      *
-     * Quy trình theo yêu cầu: xuất XML để kiểm tra/sửa TRƯỚC, rồi mới xuất PDF.
-     * @param toPdf false = chỉ XML; true = đọc lại XML (nếu có) rồi dựng PDF A4 2 mặt.
+     * Ghi nhớ luôn thông tin ĐƠN VỊ ĐO ĐẠC để lần sau tự điền —
+     * đó là phần cố định, không việc gì phải gõ lại mỗi biên bản.
+     *
+     * @param toPdf false = lưu XML (lưu trữ/đối chiếu); true = xuất PDF A4 2 mặt.
      */
     fun exportBienBan(
-        feature: com.hien.rtkmultidevice.ui.screens.map.VectorLayerImporter.VectorFeature,
-        toPdf  : Boolean
+        feature : com.hien.rtkmultidevice.ui.screens.map.VectorLayerImporter.VectorFeature,
+        bb      : BienBan,
+        zoom    : Float,
+        centerN : Double,
+        centerE : Double,
+        toPdf   : Boolean
     ) {
         viewModelScope.launch {
             runCatching {
-                val rpt = appSettings.reportSettingsFlow.first()
-                val cal = java.util.Calendar.getInstance()
-                // rawPoints VN-2000: (Easting, Northing) → (N, E)
+                // Ghi nhớ thông tin đơn vị cho lần sau
+                appSettings.saveReportSettings(
+                    com.hien.rtkmultidevice.data.datastore.AppSettings.ReportSettings(
+                        donViTen = bb.donViTen, donViDaiDien = bb.donViDaiDien,
+                        donViChucVu = bb.donViChucVu, donViDiaChi = bb.donViDiaChi,
+                        donViVpdd = bb.donViVpdd, noiCapGcn = bb.noiCapGcn
+                    )
+                )
+
                 val verts = feature.rawPoints.map { it.second to it.first }
-                // Lưu vào thư mục TẢI XUỐNG (Downloads) — cùng chỗ với file CSV điểm đo,
-                // vì Android/data/<package> bị Android 11+ chặn, người dùng không mở được.
-                val base  = "BBMG-${feature.soThua.ifBlank { feature.label }.replace(Regex("[^A-Za-z0-9]"), "_")}"
-                val xmlNm = "$base.xml"
-                val pdfNm = "$base.pdf"
+                // Lưu vào TẢI XUỐNG — Android 11+ chặn Android/data/<package>
+                val base  = "BBMG-${bb.soThua.ifBlank { "thua" }.replace(Regex("[^A-Za-z0-9]"), "_")}"
 
                 if (!toPdf) {
-                    val bb = BienBan(
-                        ngay = cal.get(java.util.Calendar.DAY_OF_MONTH),
-                        thang = cal.get(java.util.Calendar.MONTH) + 1,
-                        nam = cal.get(java.util.Calendar.YEAR),
-                        soThua = feature.soThua.ifBlank { feature.label },
-                        dienTich = feature.dienTich, loaiDat = feature.loaiDat,
-                        chuSuDung = feature.chuSuDung,
-                        donViTen = rpt.donViTen, donViDaiDien = rpt.donViDaiDien,
-                        donViChucVu = rpt.donViChucVu, donViDiaChi = rpt.donViDiaChi,
-                        donViVpdd = rpt.donViVpdd, noiCapGcn = rpt.noiCapGcn,
-                        moc = BienBan.buildMoc(verts)
-                    )
                     ReportStorage.save(
-                        appContext, xmlNm,
+                        appContext, "$base.xml",
                         BienBanXml.toXml(bb).toByteArray(Charsets.UTF_8), "text/xml"
                     )
-                    _reportFile.value = "Đã lưu Tải xuống/$xmlNm — sửa xong rồi bấm PDF"
+                    _reportFile.value = "Đã lưu Tải xuống/$base.xml"
                 } else {
-                    // Đọc lại XML NGƯỜI DÙNG ĐÃ SỬA từ Tải xuống
-                    val xmlText = ReportStorage.readText(appContext, xmlNm)
-                        ?: throw IllegalStateException("Chưa có $xmlNm — bấm XML trước")
-                    val tmp = java.io.File(appContext.cacheDir, xmlNm)
-                        .apply { writeText(xmlText, Charsets.UTF_8) }
-                    val bb = BienBanXml.load(tmp)
-                        ?: throw IllegalStateException(
-                            "Không đọc được $xmlNm — ${BienBanXml.lastError ?: "sai định dạng"}"
-                        )
-
-                    val others = vectorLayerHolder.layer.value?.features.orEmpty()
-                    val nbs = BienBanSketch.pickNeighbours(others, feature.id, verts)
-                    val pdfTmp = java.io.File(appContext.cacheDir, pdfNm)
+                    val nbs = neighboursOf(feature)
+                    val pdfTmp = java.io.File(appContext.cacheDir, "$base.pdf")
                     BienBanPdf.export(pdfTmp, bb) { canvas, frame ->
                         BienBanSketch.draw(
                             canvas, frame, verts,
                             BienBanSketch.ParcelLabel(bb.soThua, bb.dienTich, bb.loaiDat),
-                            nbs
+                            nbs, zoom, centerN, centerE
                         )
                     }
-                    ReportStorage.save(appContext, pdfNm, pdfTmp.readBytes(), "application/pdf")
-                    _reportFile.value = "Đã lưu Tải xuống/$pdfNm"
+                    ReportStorage.save(appContext, "$base.pdf", pdfTmp.readBytes(), "application/pdf")
+                    _reportFile.value = "Đã lưu Tải xuống/$base.pdf"
                 }
             }.onFailure { _reportFile.value = "Lỗi xuất biên bản: ${it.message}" }
         }

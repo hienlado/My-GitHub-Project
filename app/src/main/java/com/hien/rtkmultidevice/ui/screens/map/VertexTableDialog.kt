@@ -158,11 +158,8 @@ fun VertexTableDialog(
         confirmButton = {
             Row {
                 // Xuất biên bản: XML trước để kiểm tra/sửa, rồi mới PDF
-                if (onExportXml != null && feature.rawPoints.size >= 3) {
-                    TextButton(onClick = onExportXml) { Text("XML") }
-                }
                 if (onExportPdf != null && feature.rawPoints.size >= 3) {
-                    TextButton(onClick = onExportPdf) { Text("PDF") }
+                    TextButton(onClick = onExportPdf) { Text("Biên bản") }
                 }
                 // Đưa toàn bộ đỉnh sang ngăn "Đỉnh thửa" trong Danh sách để dùng
                 // cho định vị điểm HOẶC định vị tuyến (2 đỉnh / cả đường bao).

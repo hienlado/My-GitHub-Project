@@ -33,7 +33,10 @@ object BienBanSketch {
         mainVertices : List<Pair<Double, Double>>,
         mainLabel    : ParcelLabel,
         neighbours   : List<NeighbourParcel> = emptyList(),
-        zoom         : Float = 0.72f
+        zoom         : Float = 0.72f,
+        /** Tâm khung do người dùng chọn (N, E). null = lấy tâm thửa chính. */
+        centerN      : Double? = null,
+        centerE      : Double? = null
     ) {
         if (mainVertices.size < 3) return
 
@@ -48,8 +51,8 @@ object BienBanSketch {
         // ── Phép chiếu toạ độ → giấy ──
         val minN = mainVertices.minOf { it.first };  val maxN = mainVertices.maxOf { it.first }
         val minE = mainVertices.minOf { it.second }; val maxE = mainVertices.maxOf { it.second }
-        val cN = (minN + maxN) / 2.0
-        val cE = (minE + maxE) / 2.0
+        val cN = centerN ?: ((minN + maxN) / 2.0)
+        val cE = centerE ?: ((minE + maxE) / 2.0)
         val spanN = (maxN - minN).coerceAtLeast(1e-6)
         val spanE = (maxE - minE).coerceAtLeast(1e-6)
 

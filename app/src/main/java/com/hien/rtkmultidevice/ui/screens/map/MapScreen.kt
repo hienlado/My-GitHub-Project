@@ -130,6 +130,11 @@ fun MapScreen(
     }
     val ctx = androidx.compose.ui.platform.LocalContext.current
 
+    // Thửa đang lập biên bản (null = không mở form)
+    var bienBanFeature by remember {
+        mutableStateOf<VectorLayerImporter.VectorFeature?>(null)
+    }
+
     // ── Thông báo kết quả xuất Biên bản bàn giao mốc giới ──
     val reportMsg by viewModel.reportFile.collectAsStateWithLifecycle()
     LaunchedEffect(reportMsg) {
@@ -472,9 +477,23 @@ fun MapScreen(
                 selectedVecFeature = null
                 viewModel.sendVerticesToList(f)
             },
-            onExportBienBan = { f, toPdf ->
+            onExportBienBan = { f, _ ->
                 selectedVecFeature = null
-                viewModel.exportBienBan(f, toPdf)
+                bienBanFeature = f          // mở form nhập thay vì xuất thẳng
+            }
+        )
+    }
+
+    // ── Form nhập Biên bản bàn giao mốc giới ──
+    bienBanFeature?.let { f ->
+        BienBanFormDialog(
+            feature    = f,
+            neighbours = remember(f.id) { viewModel.neighboursOf(f) },
+            initial    = remember(f.id) { viewModel.bienBanDefaults(f) },
+            onDismiss  = { bienBanFeature = null },
+            onExport   = { bb, zoom, cN, cE, toPdf ->
+                viewModel.exportBienBan(f, bb, zoom, cN, cE, toPdf)
+                if (toPdf) bienBanFeature = null      // XML thì giữ form để sửa tiếp
             }
         )
     }
