@@ -57,6 +57,10 @@ class AppSettings @Inject constructor(
         private val KEY_RPT_DIACHI   = stringPreferencesKey("rpt_dia_chi")
         private val KEY_RPT_VPDD     = stringPreferencesKey("rpt_vpdd")
         private val KEY_RPT_NOICAP   = stringPreferencesKey("rpt_noi_cap_gcn")
+
+        // ── Lịch sử tìm kiếm (mỗi loại giữ 10 mục gần nhất) ──
+        private val KEY_RECENT_SHEETS = stringPreferencesKey("recent_sheets")
+        private val KEY_RECENT_OWNERS = stringPreferencesKey("recent_owners")
         /** Mountpoint + tên đăng nhập + mật khẩu của lần NTRIP chạy được gần nhất */
         private val KEY_OK_MOUNT       = stringPreferencesKey("ntrip_ok_mount")
         private val KEY_OK_USER        = stringPreferencesKey("ntrip_ok_user")
@@ -173,6 +177,37 @@ class AppSettings @Inject constructor(
             p[KEY_RPT_DIACHI]  = r.donViDiaChi
             p[KEY_RPT_VPDD]    = r.donViVpdd
             p[KEY_RPT_NOICAP]  = r.noiCapGcn
+        }
+    }
+
+    // ── Lịch sử tìm kiếm ────────────────────────────────────
+    /** Tối đa 10 mục, mới nhất lên đầu, không trùng lặp. */
+    private fun pushRecent(cur: String, item: String, max: Int = 10): String {
+        val v = item.trim()
+        if (v.isBlank()) return cur
+        val list = cur.split('\n').filter { it.isNotBlank() && it != v }
+        return (listOf(v) + list).take(max).joinToString("\n")
+    }
+
+    /** Tờ bản đồ đã mở gần đây — lưu dạng "slug|122/90". */
+    val recentSheetsFlow: Flow<List<String>> = context.dataStore.data.map {
+        (it[KEY_RECENT_SHEETS] ?: "").split('\n').filter { s -> s.isNotBlank() }
+    }
+
+    suspend fun addRecentSheet(entry: String) {
+        context.dataStore.edit {
+            it[KEY_RECENT_SHEETS] = pushRecent(it[KEY_RECENT_SHEETS] ?: "", entry)
+        }
+    }
+
+    /** Tên chủ đã tìm gần đây. */
+    val recentOwnersFlow: Flow<List<String>> = context.dataStore.data.map {
+        (it[KEY_RECENT_OWNERS] ?: "").split('\n').filter { s -> s.isNotBlank() }
+    }
+
+    suspend fun addRecentOwner(query: String) {
+        context.dataStore.edit {
+            it[KEY_RECENT_OWNERS] = pushRecent(it[KEY_RECENT_OWNERS] ?: "", query)
         }
     }
 

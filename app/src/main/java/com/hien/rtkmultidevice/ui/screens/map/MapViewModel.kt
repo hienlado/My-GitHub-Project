@@ -19,8 +19,10 @@ import com.hien.rtkmultidevice.report.ReportStorage
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -108,20 +110,60 @@ class MapViewModel @Inject constructor(
             val vn = com.hien.rtkmultidevice.core.coordinate.Vn2000Converter
                 .convert(lat, lon, 0.0, CadastralCloudSource.CENTRAL_MERIDIAN)
             if (vn == null) _cloudMessage.value = "Không đổi được toạ độ VN-2000"
-            else _whereResult.value =
-                if (_offlineMode.value) CadastralLocalSource.whereAmIVn2000(appContext, vn.easting, vn.northing)
+            else {
+                val r = if (_offlineMode.value)
+                    CadastralLocalSource.whereAmIVn2000(appContext, vn.easting, vn.northing)
                 else CadastralCloudSource.whereAmI(vn.easting, vn.northing)
+                _whereResult.value = r
+                openSheetOf(r)          // mở luôn tờ, khỏi thao tác thêm
+            }
             _cloudLoading.value = false
         }
+    }
+
+    /**
+     * Tra xong vị trí thì MỞ LUÔN tờ bản đồ chứa nó.
+     * Trước đây người dùng phải tự nhớ số tờ rồi mở tay — thừa một bước.
+     * WhereResult chỉ có TÊN xã nên phải dò ngược ra slug thư mục.
+     */
+    private fun openSheetOf(r: CadastralCloudSource.WhereResult?) {
+        if (r == null || !r.found || r.to.isBlank()) return
+        val slug = communeSlugFromName(r.xaName) ?: return
+        _targetThua.value = r.thua.ifBlank { null }   // để highlight thửa sau khi tải
+        loadCadastralSheet(slug, if (r.thua.isBlank()) r.to else "${r.to}/${r.thua}")
+    }
+
+    // ── Lịch sử tìm kiếm (10 mục gần nhất) ────────────────────
+    val recentSheets: StateFlow<List<String>> = appSettings.recentSheetsFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val recentOwners: StateFlow<List<String>> = appSettings.recentOwnersFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun rememberOwnerQuery(q: String) {
+        viewModelScope.launch { appSettings.addRecentOwner(q.trim()) }
+    }
+
+    /** Dò slug thư mục xã từ tên hiển thị (bỏ dấu, bỏ "Xã/Phường"). */
+    private fun communeSlugFromName(name: String): String? {
+        if (name.isBlank()) return null
+        fun norm(s: String) = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
+            .filter { Character.getType(it) != Character.NON_SPACING_MARK.toInt() }
+            .replace('đ', 'd').replace('Đ', 'D')
+            .lowercase().replace(Regex("[^a-z0-9]"), "")
+        val target = norm(name)
+        return CadastralCloudSource.COMMUNES
+            .firstOrNull { norm(it.second) == target || target.endsWith(norm(it.second).removePrefix("xa").removePrefix("phuong")) }
+            ?.first
     }
 
     /** Tra theo toạ độ VN-2000 nhập tay (x=Easting, y=Northing). */
     fun whereAmIVn2000(x: Double, y: Double) {
         viewModelScope.launch {
             _cloudLoading.value = true
-            _whereResult.value =
-                if (_offlineMode.value) CadastralLocalSource.whereAmIVn2000(appContext, x, y)
-                else CadastralCloudSource.whereAmI(x, y)
+            val r = if (_offlineMode.value) CadastralLocalSource.whereAmIVn2000(appContext, x, y)
+                    else CadastralCloudSource.whereAmI(x, y)
+            _whereResult.value = r
+            openSheetOf(r)
             _cloudLoading.value = false
         }
     }
@@ -145,6 +187,8 @@ class MapViewModel @Inject constructor(
                 is VectorLayerImporter.ImportResult.Success -> {
                     addVectorLayer(r.layer)          // GỘP thêm tờ (mở nhiều tờ cùng lúc)
                     _targetThua.value = sp.thua
+                    // Ghi vào lịch sử để lần sau chọn nhanh
+                    appSettings.addRecentSheet("$communeSlug|$rawInput")
                     _cloudMessage.value =
                         if (sp.thua != null) "Đã tải tờ ${sp.to} → thửa ${sp.thua}"
                         else "Đã tải tờ ${sp.to}"

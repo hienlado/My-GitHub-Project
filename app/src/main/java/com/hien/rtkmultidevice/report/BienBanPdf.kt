@@ -42,6 +42,14 @@ object BienBanPdf {
         return outFile
     }
 
+    // Bề rộng cột bảng toạ độ (pt). Cột "Đỉnh thửa" đủ rộng cho tiêu đề,
+    // bù lại thu hẹp X/Y vì số liệu ngắn hơn ô.
+    private const val W_DINH = 54f
+    private const val W_X    = 70f
+    private const val W_Y    = 68f
+    private const val W_KC   = 40f
+    private const val TBL_W  = W_DINH + W_X + W_Y + W_KC   // 232
+
     // ══════════════════════════════════════════════════════════
     // MẶT 1 — phần văn bản
     // ══════════════════════════════════════════════════════════
@@ -116,70 +124,116 @@ object BienBanPdf {
     // ══════════════════════════════════════════════════════════
 
     private fun drawPage2(doc: PdfDocument, b: BienBan, sketch: ((Canvas, RectF) -> Unit)?) {
-        val page = doc.startPage(PdfDocument.PageInfo.Builder(PAGE_W, PAGE_H, 2).create())
-        val c = page.canvas
-        var y = MARGIN + 10f
-        val cx = PAGE_W / 2f
-
-        c.drawText("BẢNG KÊ TOẠ ĐỘ MỐC GIỚI", cx, y, paint(13f, bold = true, align = Paint.Align.CENTER))
-        y += 18f
-        c.drawText(
-            "(Hệ toạ độ VN-2000, kinh tuyến trục ${b.kinhTuyenTruc}, múi chiếu ${b.muiChieu})",
-            cx, y, paint(9f, italic = true, align = Paint.Align.CENTER)
-        )
-        y += 22f
-
-        // ── Bảng toạ độ (bên trái) ──
-        val tblW = 232f
-        val tblL = MARGIN
-        val rowH = 17f
-        val line = Paint().apply { strokeWidth = 0.8f; color = Color.BLACK }
+        val rowH  = 17f
         val cellB = paint(9.5f, bold = true, align = Paint.Align.CENTER)
         val cell  = paint(9.5f, align = Paint.Align.CENTER)
-
-        val colX = floatArrayOf(tblL, tblL + 40f, tblL + 118f, tblL + 190f, tblL + tblW)
-        val tblTop = y
-
-        // Tiêu đề cột
-        c.drawText("Đỉnh thửa", (colX[0] + colX[1]) / 2f, y + 12f, cellB)
-        c.drawText("X (m)",     (colX[1] + colX[2]) / 2f, y + 12f, cellB)
-        c.drawText("Y (m)",     (colX[2] + colX[3]) / 2f, y + 12f, cellB)
-        c.drawText("K/C (m)",   (colX[3] + colX[4]) / 2f, y + 12f, cellB)
-        y += rowH
-
-        b.moc.forEach { m ->
-            c.drawText(m.dinh,              (colX[0] + colX[1]) / 2f, y + 12f, cell)
-            // Locale.US để luôn dùng dấu CHẤM thập phân như mẫu biên bản
-            c.drawText("%.2f".format(java.util.Locale.US, m.x), (colX[1] + colX[2]) / 2f, y + 12f, cell)
-            c.drawText("%.2f".format(java.util.Locale.US, m.y), (colX[2] + colX[3]) / 2f, y + 12f, cell)
-            // K/C ghi giữa 2 dòng như mẫu → đặt lệch xuống nửa dòng
-            m.khoangCach?.let {
-                c.drawText("%.2f".format(java.util.Locale.US, it), (colX[3] + colX[4]) / 2f, y + 20f, cell)
-            }
-            y += rowH
-        }
-        val tblBottom = y
-        // Khung bảng
-        colX.forEach { x -> c.drawLine(x, tblTop, x, tblBottom, line) }
-        var ry = tblTop
-        while (ry <= tblBottom + 0.1f) { c.drawLine(colX[0], ry, colX[4], ry, line); ry += rowH }
-
-        // ── Khung sơ hoạ (bên phải, kéo dài xuống dưới) ──
-        val skL = tblL + tblW + 16f
-        val skFrame = RectF(skL, tblTop, PAGE_W - MARGIN, tblTop + 300f)
-        c.drawText(
-            "SƠ HOẠ VỊ TRÍ MỐC CẮM",
-            skFrame.centerX(), tblTop - 6f,
-            paint(9.5f, bold = true, align = Paint.Align.CENTER)
+        val line  = Paint().apply { strokeWidth = 0.8f; color = Color.BLACK }
+        val tblL  = MARGIN
+        val colX  = floatArrayOf(
+            tblL, tblL + W_DINH, tblL + W_DINH + W_X,
+            tblL + W_DINH + W_X + W_Y, tblL + TBL_W
         )
-        if (sketch != null) sketch(c, skFrame)
-        else c.drawRect(skFrame, Paint().apply { style = Paint.Style.STROKE; strokeWidth = 1.2f })
 
-        // ── Mục 4 ──
-        val y4 = maxOf(tblBottom, skFrame.bottom) + 30f
-        c.drawText("4. Xác nhận của các chủ sử dụng đất lân cận", MARGIN, y4, paint(11f, bold = true))
+        var pageNo   = 2
+        var rowIdx   = 0
+        var firstPg  = true
 
-        doc.finishPage(page)
+        while (rowIdx < b.moc.size || firstPg) {
+            val page = doc.startPage(PdfDocument.PageInfo.Builder(PAGE_W, PAGE_H, pageNo).create())
+            val c = page.canvas
+            var y = MARGIN + 10f
+            val cx = PAGE_W / 2f
+
+            if (firstPg) {
+                c.drawText("BẢNG KÊ TOẠ ĐỘ MỐC GIỚI", cx, y,
+                    paint(13f, bold = true, align = Paint.Align.CENTER))
+                y += 18f
+                c.drawText(
+                    "(Hệ toạ độ VN-2000, kinh tuyến trục ${b.kinhTuyenTruc}, múi chiếu ${b.muiChieu})",
+                    cx, y, paint(9f, italic = true, align = Paint.Align.CENTER)
+                )
+                y += 22f
+            } else {
+                c.drawText("BẢNG KÊ TOẠ ĐỘ MỐC GIỚI (tiếp theo)", cx, y,
+                    paint(11f, bold = true, align = Paint.Align.CENTER))
+                y += 22f
+            }
+
+            val tblTop = y
+
+            // ── Sơ hoạ: chỉ vẽ ở trang đầu của bảng ──
+            var skBottom = tblTop
+            if (firstPg) {
+                val skFrame = RectF(tblL + TBL_W + 16f, tblTop, PAGE_W - MARGIN, tblTop + 300f)
+                c.drawText("SƠ HOẠ VỊ TRÍ MỐC CẮM", skFrame.centerX(), tblTop - 6f,
+                    paint(9.5f, bold = true, align = Paint.Align.CENTER))
+                if (sketch != null) sketch(c, skFrame)
+                else c.drawRect(skFrame, Paint().apply {
+                    style = Paint.Style.STROKE; strokeWidth = 1.2f
+                })
+                skBottom = skFrame.bottom
+            }
+
+            // ── Tiêu đề cột ──
+            c.drawText("Đỉnh thửa", (colX[0] + colX[1]) / 2f, y + 12f, cellB)
+            c.drawText("X (m)",     (colX[1] + colX[2]) / 2f, y + 12f, cellB)
+            c.drawText("Y (m)",     (colX[2] + colX[3]) / 2f, y + 12f, cellB)
+            c.drawText("K/C (m)",   (colX[3] + colX[4]) / 2f, y + 12f, cellB)
+            y += rowH
+
+            // ── Các dòng vừa với trang (chừa chỗ cho mục Ghi chú) ──
+            val yLimit = PAGE_H - MARGIN - 60f
+            val rowTop = y
+            while (rowIdx < b.moc.size && y + rowH <= yLimit) {
+                val m = b.moc[rowIdx]
+                c.drawText(m.dinh, (colX[0] + colX[1]) / 2f, y + 12f, cell)
+                // Locale.US → luôn dấu CHẤM thập phân như mẫu biên bản
+                c.drawText("%.2f".format(java.util.Locale.US, m.x), (colX[1] + colX[2]) / 2f, y + 12f, cell)
+                c.drawText("%.2f".format(java.util.Locale.US, m.y), (colX[2] + colX[3]) / 2f, y + 12f, cell)
+                // K/C là khoảng cách GIỮA hai đỉnh → đặt so le, nằm giữa 2 dòng
+                m.khoangCach?.let {
+                    c.drawText("%.2f".format(java.util.Locale.US, it), (colX[3] + colX[4]) / 2f, y + 21f, cell)
+                }
+                y += rowH
+                rowIdx++
+            }
+            val tblBottom = y
+
+            // ── Khung bảng ──
+            // Đường DỌC: kẻ đủ 5 đường.
+            colX.forEach { x -> c.drawLine(x, tblTop, x, tblBottom, line) }
+            // Đường NGANG: NGẮT TẠI CỘT K/C (chỉ kẻ tới colX[3]) vì số liệu K/C
+            // nằm so le giữa hai dòng — kẻ hết sẽ cắt ngang chữ.
+            var ry = tblTop
+            while (ry <= tblBottom + 0.1f) { c.drawLine(colX[0], ry, colX[3], ry, line); ry += rowH }
+            // Riêng cột K/C chỉ đóng khung trên/dưới
+            c.drawLine(colX[3], tblTop, colX[4], tblTop, line)
+            c.drawLine(colX[3], rowTop, colX[4], rowTop, line)
+            c.drawLine(colX[3], tblBottom, colX[4], tblBottom, line)
+
+            // ── Mục 4: Ghi chú — cơ động, luôn nằm dưới cùng phần đã vẽ ──
+            if (rowIdx >= b.moc.size) {
+                val y4 = maxOf(tblBottom, skBottom) + 26f
+                if (y4 < PAGE_H - MARGIN) {
+                    c.drawText("4. Ghi chú:", MARGIN, y4, paint(11f, bold = true))
+                    // 3 dòng kẻ trống để viết tay
+                    var ly = y4 + 20f
+                    repeat(3) {
+                        if (ly < PAGE_H - MARGIN) {
+                            c.drawLine(MARGIN, ly, PAGE_W - MARGIN, ly, Paint().apply {
+                                strokeWidth = 0.6f; color = Color.rgb(120, 120, 120)
+                            })
+                            ly += 18f
+                        }
+                    }
+                }
+            }
+
+            doc.finishPage(page)
+            firstPg = false
+            pageNo++
+            if (rowIdx >= b.moc.size) break
+        }
     }
 
     // ══════════════════════════════════════════════════════════

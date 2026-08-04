@@ -203,9 +203,12 @@ fun OwnerSearchButton(
         var communeFilter by remember { mutableStateOf<String?>(null) }
         var pickCommune by remember { mutableStateOf(false) }
 
+        val recentOwners by viewModel.recentOwners.collectAsStateWithLifecycle()
+
         fun doSearch() {
             if (query.trim().length < 2 || searching) return
             searching = true; searched = true
+            viewModel.rememberOwnerQuery(query)   // lưu vào lịch sử 10 mục
             scope.launch {
                 results = try {
                     CadastralLocalSource.searchOwner(
@@ -278,6 +281,31 @@ fun OwnerSearchButton(
                         )
                     }
                     Spacer(Modifier.height(8.dp))
+
+                    // ── Lịch sử tìm gần đây — hiện khi chưa gõ gì ──
+                    if (query.isBlank() && recentOwners.isNotEmpty()) {
+                        Text("Tìm gần đây:", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(4.dp))
+                        Column(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            recentOwners.forEach { q ->
+                                Text(
+                                    q,
+                                    modifier = Modifier.fillMaxWidth()
+                                        .clickable { query = q; searched = false }
+                                        .padding(vertical = 7.dp),
+                                    fontSize = 13.sp
+                                )
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
 
                     if (searching)
                         Text("Đang quét dữ liệu (có thể vài giây)…", style = MaterialTheme.typography.bodySmall)
