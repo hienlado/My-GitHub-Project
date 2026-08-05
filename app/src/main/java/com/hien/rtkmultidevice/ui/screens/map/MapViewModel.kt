@@ -179,13 +179,25 @@ class MapViewModel @Inject constructor(
             _cloudMessage.value = "Nhập chưa đúng — ví dụ 122/90 (tờ 122, thửa 90)"
             return
         }
+        // ĐÃ NẠP RỒI thì KHÔNG đọc/parse lại — chỉ điều hướng tới thửa.
+        // Đây là chỗ gây lag: mỗi lần bấm "tôi đang ở thửa nào" lại nạp trùng
+        // cùng một tờ, số đối tượng nhân lên và bản đồ vẽ lại toàn bộ.
+        val key = "$communeSlug/${sp.to}"
+        if (vectorLayerHolder.isLoaded(key)) {
+            _targetThua.value = sp.thua
+            _cloudMessage.value =
+                if (sp.thua != null) "Tờ ${sp.to} đã mở → thửa ${sp.thua}"
+                else "Tờ ${sp.to} đã mở"
+            return
+        }
+
         viewModelScope.launch {
             _cloudLoading.value = true
             val r = if (_offlineMode.value) CadastralLocalSource.loadSheet(appContext, communeSlug, sp.to)
                     else CadastralCloudSource.loadSheet(communeSlug, sp.to)
             when (r) {
                 is VectorLayerImporter.ImportResult.Success -> {
-                    addVectorLayer(r.layer)          // GỘP thêm tờ (mở nhiều tờ cùng lúc)
+                    vectorLayerHolder.addSheet(key, r.layer)   // gộp tờ, chống trùng
                     _targetThua.value = sp.thua
                     // Ghi vào lịch sử để lần sau chọn nhanh
                     appSettings.addRecentSheet("$communeSlug|$rawInput")
