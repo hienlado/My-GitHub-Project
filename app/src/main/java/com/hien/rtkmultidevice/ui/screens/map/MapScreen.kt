@@ -130,8 +130,24 @@ fun MapScreen(
     }
     val ctx = androidx.compose.ui.platform.LocalContext.current
 
-    // Chưa có RTK thì dùng GPS điện thoại để bản đồ vẫn biết vị trí
-    LaunchedEffect(Unit) { viewModel.ensurePositionSource() }
+    // ── Chưa nối máy thu → dùng GPS điện thoại để bản đồ vẫn biết vị trí ──
+    // Thiếu quyền vị trí thì lớp dự phòng im lặng bỏ qua, nên phải xin quyền trước.
+    val locPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { viewModel.ensurePositionSource() }
+
+    LaunchedEffect(Unit) {
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            ctx, android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) viewModel.ensurePositionSource()
+        else locPermLauncher.launch(
+            arrayOf(
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
+    }
 
     // Thửa đang lập biên bản (null = không mở form)
     var bienBanFeature by remember {

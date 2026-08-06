@@ -155,7 +155,10 @@ class GnssDataManager @Inject constructor(
             connection.nmeaFlow().collect { sentence ->
                 lastNmeaTimeMs = System.currentTimeMillis()
                 // Có dữ liệu máy thu → nhường quyền, tắt GPS điện thoại
-                if (phoneGps.running) stopPhoneGpsFallback()
+                if (phoneGps.running) {
+                    stopPhoneGpsFallback()
+                    _gnssStatus.value = _gnssStatus.value.copy(isPhoneGps = false)
+                }
                 processNmeaSentence(sentence)
             }
         }
@@ -196,6 +199,11 @@ class GnssDataManager @Inject constructor(
      */
     fun startPhoneGpsFallback() {
         if (phoneGps.running) return
+        // Nạp cài đặt toạ độ ĐỘC LẬP với kết nối máy thu — trước đây coordSettings
+        // chỉ được nạp trong startNmeaProcessing(), chưa nối máy thì vẫn là mặc định.
+        managerScope.launch {
+            appSettings.coordSettingsFlow.collect { coordSettings = it }
+        }
         phoneGps.start { lat, lon, alt, acc ->
             // Có NMEA thật trong 5 giây gần đây → bỏ qua, máy thu ưu tiên tuyệt đối
             if (System.currentTimeMillis() - lastNmeaTimeMs < 5_000L) return@start
@@ -209,8 +217,12 @@ class GnssDataManager @Inject constructor(
             _usingPhoneGps.value = true
             _gnssStatus.value = _gnssStatus.value.copy(
                 latitude = lat, longitude = lon, altitude = alt,
-                fixQuality = 1,                 // SINGLE — nêu rõ đây KHÔNG phải RTK
-                hAccuracy = acc.toDouble(),     // dùng độ chính xác do Android báo
+                // fixQuality=1 để phần định vị/bản đồ coi là "có vị trí",
+                // nhưng isPhoneGps=true để hiển thị "GPS ĐT" chứ KHÔNG phải SINGLE.
+                fixQuality = 1,
+                isPhoneGps = true,
+                satelliteCount = 0,
+                hAccuracy = acc.toDouble(),     // độ chính xác do Android báo
                 vAccuracy = acc.toDouble() * 1.5,
                 vn2000 = vn
             )
@@ -229,6 +241,9 @@ class GnssDataManager @Inject constructor(
             while (true) {
                 delay(1000L)
                 val silentMs = System.currentTimeMillis() - lastNmeaTimeMs
+                // ĐANG dùng GPS điện thoại thì KHÔNG hạ về NO FIX —
+                // trước đây watchdog xoá sạch vị trí dự phòng mỗi giây.
+                if (phoneGps.running) continue
                 if (silentMs > NMEA_TIMEOUT_MS && _gnssStatus.value.fixQuality != 0) {
                     Log.w(TAG, "⚠ Mất tín hiệu NMEA ${silentMs}ms → đặt NO FIX (đầu thu tắt/ngắt?)")
                     _gnssStatus.value = _gnssStatus.value.copy(

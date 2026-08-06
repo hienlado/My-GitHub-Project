@@ -55,6 +55,13 @@ data class GnssStatus(
     /** Dung lượng pin máy thu (%). -1 = chưa đọc được (chưa nối WiFi máy / dùng Bluetooth). */
     val batteryPercent: Int = -1,
 
+    /**
+     * true = vị trí lấy từ CHIP GPS ĐIỆN THOẠI (chưa nối máy thu RTK).
+     * Phân biệt rõ với SINGLE của máy thu — độ chính xác chỉ vài mét,
+     * dùng để định vị/tra tờ, KHÔNG dùng để đo.
+     */
+    val isPhoneGps: Boolean = false,
+
     /** Thời gian UTC định dạng hh:mm:ss */
     val utcTime: String = "--:--:--",
 
@@ -93,17 +100,19 @@ data class GnssStatus(
 
     /** Nhãn chất lượng fix */
     val fixLabel: String
-        get() = when (fixQuality) {
-            4    -> "RTK FIXED"
-            5    -> "RTK FLOAT"
-            2    -> "DGPS"
-            1    -> "SINGLE"
-            else -> "NO FIX"
+        get() = when {
+            isPhoneGps        -> "GPS ĐT"      // chip điện thoại, chưa nối máy thu
+            fixQuality == 4   -> "RTK FIXED"
+            fixQuality == 5   -> "RTK FLOAT"
+            fixQuality == 2   -> "DGPS"
+            fixQuality == 1   -> "SINGLE"
+            else              -> "NO FIX"
         }
 
     /** Màu hex ARGB cho banner fix */
     val fixColorHex: String
-        get() = when (fixQuality) {
+        get() = if (isPhoneGps) "#FF4527A0"   // tím — nhắc đây KHÔNG phải RTK
+        else when (fixQuality) {
             4    -> "#FF1B5E20"   // Xanh đậm — RTK Fixed
             5    -> "#FF33691E"   // Xanh nhạt — RTK Float
             2    -> "#FF1565C0"   // Xanh dương — DGPS
