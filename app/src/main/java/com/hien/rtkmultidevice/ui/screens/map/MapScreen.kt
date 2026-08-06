@@ -130,6 +130,9 @@ fun MapScreen(
     }
     val ctx = androidx.compose.ui.platform.LocalContext.current
 
+    // Chưa có RTK thì dùng GPS điện thoại để bản đồ vẫn biết vị trí
+    LaunchedEffect(Unit) { viewModel.ensurePositionSource() }
+
     // Thửa đang lập biên bản (null = không mở form)
     var bienBanFeature by remember {
         mutableStateOf<VectorLayerImporter.VectorFeature?>(null)
@@ -486,9 +489,14 @@ fun MapScreen(
 
     // ── Form nhập Biên bản bàn giao mốc giới ──
     bienBanFeature?.let { f ->
+        // Thửa ở RÌA tờ → nạp thêm tờ kề để sơ hoạ không thiếu ranh giáp biên.
+        // nbRefresh tăng sau khi nạp xong → tính lại danh sách thửa giáp biên.
+        var nbRefresh by remember(f.id) { mutableIntStateOf(0) }
+        LaunchedEffect(f.id) { viewModel.loadAdjacentSheets(f) { nbRefresh++ } }
+
         BienBanFormDialog(
             feature    = f,
-            neighbours = remember(f.id) { viewModel.neighboursOf(f) },
+            neighbours = remember(f.id, nbRefresh) { viewModel.neighboursOf(f) },
             initial    = remember(f.id) { viewModel.bienBanDefaults(f) },
             onDismiss  = { bienBanFeature = null },
             onExport   = { bb, zoom, cN, cE, toPdf ->

@@ -106,6 +106,14 @@ class GnssDataManager @Inject constructor(
     private var watchdogJob: Job? = null
     private var batteryJob: Job? = null
 
+    // ── Dự phòng: GPS điện thoại khi chưa có máy thu RTK ──
+    private val phoneGps by lazy { PhoneGpsFallback(context) }
+    private var phoneGpsJob: Job? = null
+
+    /** true khi vị trí đang lấy từ chip GPS điện thoại (không phải máy thu). */
+    private val _usingPhoneGps = MutableStateFlow(false)
+    val usingPhoneGps: StateFlow<Boolean> = _usingPhoneGps.asStateFlow()
+
     /** Chu kỳ đọc pin máy thu (ms). Pin đổi chậm nên không cần đọc dày. */
     private val BATTERY_POLL_MS = 60_000L
     /** Thời điểm nhận câu NMEA gần nhất — cho watchdog phát hiện mất tín hiệu. */
@@ -146,6 +154,8 @@ class GnssDataManager @Inject constructor(
 
             connection.nmeaFlow().collect { sentence ->
                 lastNmeaTimeMs = System.currentTimeMillis()
+                // Có dữ liệu máy thu → nhường quyền, tắt GPS điện thoại
+                if (phoneGps.running) stopPhoneGpsFallback()
                 processNmeaSentence(sentence)
             }
         }
@@ -175,6 +185,41 @@ class GnssDataManager @Inject constructor(
                 delay(BATTERY_POLL_MS)
             }
         }
+    }
+
+    /**
+     * Bật GPS ĐIỆN THOẠI làm nguồn vị trí dự phòng.
+     *
+     * Gọi khi app chạy offline / chưa nối máy thu: bản đồ vẫn biết đang ở đâu,
+     * tra được "tôi đang ở thửa nào". Độ chính xác vài mét — CHỈ để định vị,
+     * KHÔNG dùng để đo. Có tín hiệu RTK là tự nhường chỗ ngay.
+     */
+    fun startPhoneGpsFallback() {
+        if (phoneGps.running) return
+        phoneGps.start { lat, lon, alt, acc ->
+            // Có NMEA thật trong 5 giây gần đây → bỏ qua, máy thu ưu tiên tuyệt đối
+            if (System.currentTimeMillis() - lastNmeaTimeMs < 5_000L) return@start
+
+            val settings = coordSettings
+            val vn = if (settings.zoneWidthDeg == 6)
+                Vn2000Converter.convert6Deg(lat, lon, alt, settings.centralMeridianOverride)
+            else
+                Vn2000Converter.convert(lat, lon, alt, settings.centralMeridianOverride)
+
+            _usingPhoneGps.value = true
+            _gnssStatus.value = _gnssStatus.value.copy(
+                latitude = lat, longitude = lon, altitude = alt,
+                fixQuality = 1,                 // SINGLE — nêu rõ đây KHÔNG phải RTK
+                hAccuracy = acc.toDouble(),     // dùng độ chính xác do Android báo
+                vAccuracy = acc.toDouble() * 1.5,
+                vn2000 = vn
+            )
+        }
+    }
+
+    fun stopPhoneGpsFallback() {
+        phoneGps.stop()
+        _usingPhoneGps.value = false
     }
 
     /** Giám sát luồng NMEA — mất tín hiệu quá lâu thì hạ về NO FIX. */

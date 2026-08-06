@@ -286,7 +286,7 @@ class MapViewModel @Inject constructor(
         )
     }
 
-    /** Thửa giáp biên để vẽ nền sơ hoạ. */
+    /** Thửa giáp biên để vẽ nền sơ hoạ (chỉ trong các tờ ĐANG mở). */
     fun neighboursOf(
         feature: com.hien.rtkmultidevice.ui.screens.map.VectorLayerImporter.VectorFeature
     ): List<BienBanSketch.NeighbourParcel> = BienBanSketch.pickNeighbours(
@@ -294,6 +294,54 @@ class MapViewModel @Inject constructor(
         feature.id,
         feature.rawPoints.map { it.second to it.first }
     )
+
+    /**
+     * Nạp thêm các TỜ KỀ BÊN chứa thửa giáp ranh với thửa đang lập biên bản.
+     *
+     * Vì sao cần: thửa nằm ở RÌA tờ thì các thửa tiếp giáp lại thuộc tờ khác
+     * chưa mở ⇒ sơ hoạ bị thiếu ranh phía đó. Dùng chỉ mục khung tờ để tìm tờ
+     * nào có bao hình chạm vùng quanh thửa rồi nạp bổ sung (đã có chống trùng).
+     *
+     * @param onDone gọi lại sau khi nạp xong để dựng lại sơ hoạ.
+     */
+    fun loadAdjacentSheets(
+        feature: com.hien.rtkmultidevice.ui.screens.map.VectorLayerImporter.VectorFeature,
+        onDone : () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                loadSheetFramesIfNeeded()
+                val idx = _sheetFrames.value
+                if (idx.isEmpty()) return@runCatching
+
+                // Bao hình thửa theo WGS-84 + nới rộng để chạm sang tờ bên
+                val gps = feature.geoPoints
+                if (gps.isEmpty()) return@runCatching
+                val latMin = gps.minOf { it.latitude };  val latMax = gps.maxOf { it.latitude }
+                val lonMin = gps.minOf { it.longitude }; val lonMax = gps.maxOf { it.longitude }
+                val dLat = ((latMax - latMin).coerceAtLeast(1e-5)) * 1.5
+                val dLon = ((lonMax - lonMin).coerceAtLeast(1e-5)) * 1.5
+
+                val touching = idx.filter { b ->
+                    b.lonMax >= lonMin - dLon && b.lonMin <= lonMax + dLon &&
+                    b.latMax >= latMin - dLat && b.latMin <= latMax + dLat
+                }
+                var added = 0
+                for (b in touching) {
+                    val key = "${b.commune}/${b.to}"
+                    if (vectorLayerHolder.isLoaded(key)) continue
+                    val r = if (_offlineMode.value)
+                        CadastralLocalSource.loadSheet(appContext, b.commune, b.to)
+                    else CadastralCloudSource.loadSheet(b.commune, b.to)
+                    if (r is VectorLayerImporter.ImportResult.Success) {
+                        vectorLayerHolder.addSheet(key, r.layer); added++
+                    }
+                }
+                if (added > 0) _cloudMessage.value = "Đã nạp thêm $added tờ kề để vẽ đủ ranh giáp biên"
+            }
+            onDone()
+        }
+    }
 
     /**
      * Xuất BIÊN BẢN từ nội dung người dùng đã nhập trong form.
@@ -348,6 +396,17 @@ class MapViewModel @Inject constructor(
             }.onFailure { _reportFile.value = "Lỗi xuất biên bản: ${it.message}" }
         }
     }
+
+    /**
+     * Bật GPS điện thoại làm nguồn vị trí dự phòng khi chưa có máy thu RTK.
+     * Gọi khi mở màn Bản đồ. Có RTK là GnssDataManager tự tắt dự phòng.
+     */
+    fun ensurePositionSource() {
+        if (gnssManager.gnssStatus.value.fixQuality <= 0) gnssManager.startPhoneGpsFallback()
+    }
+
+    /** true = vị trí đang lấy từ chip điện thoại (không phải máy thu RTK). */
+    val usingPhoneGps: StateFlow<Boolean> = gnssManager.usingPhoneGps
 
     // ── GNSS live ─────────────────────────────────────────────
     val gnssStatus: StateFlow<GnssStatus> = gnssManager.gnssStatus

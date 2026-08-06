@@ -5,8 +5,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Calculate
@@ -219,14 +224,30 @@ private fun AreaTool(points: List<CogoPoint>) {
                 TextButton(onClick = { verts.clear(); vertNames.clear(); out = "" }) { Text("Xoá hết") }
         }
 
-        // Danh sách đỉnh đã chọn, đánh số theo thứ tự
-        verts.forEachIndexed { i, p ->
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("${i + 1}. ${vertNames.getOrElse(i) { "" }}  (%.2f, %.2f)".format(p.n, p.e),
-                    fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
-                IconButton(onClick = { if (i < verts.size) { verts.removeAt(i); vertNames.removeAt(i) } },
-                    modifier = Modifier.width(32.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Bỏ đỉnh", modifier = Modifier.width(16.dp))
+        // ── XEM TRƯỚC HÌNH THỂ — kiểm tra thứ tự đỉnh trước khi tính ──
+        // Chọn nhầm thứ tự sẽ tạo hình "thắt nút", diện tích sai mà nhìn số
+        // không phát hiện được. Vẽ ra là thấy ngay.
+        if (verts.size >= 2) {
+            AreaPreview(verts.toList(), modifier = Modifier.fillMaxWidth().height(150.dp))
+            Spacer(Modifier.height(4.dp))
+        }
+
+        // Danh sách đỉnh đã chọn — CUỘN ĐƯỢC, giới hạn chiều cao để
+        // nút "Tính" luôn nhìn thấy dù thửa có hàng chục đỉnh.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 150.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            verts.forEachIndexed { i, p ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text("${i + 1}. ${vertNames.getOrElse(i) { "" }}  (%.2f, %.2f)".format(p.n, p.e),
+                        fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { if (i < verts.size) { verts.removeAt(i); vertNames.removeAt(i) } },
+                        modifier = Modifier.width(32.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Bỏ đỉnh", modifier = Modifier.width(16.dp))
+                    }
                 }
             }
         }
@@ -252,6 +273,81 @@ private fun AreaTool(points: List<CogoPoint>) {
             }
         }) { Text("Tính") }
         Spacer(Modifier.height(8.dp)); resultText(out)
+    }
+}
+
+/**
+ * AreaPreview — Vẽ hình thể các đỉnh ĐÃ CHỌN theo đúng thứ tự bấm.
+ *
+ * Mục đích: phát hiện chọn nhầm thứ tự. Nối sai thứ tự sẽ ra hình "thắt nút"
+ * (bow-tie) — diện tích tính ra vẫn có số nhưng SAI, nhìn con số không biết được.
+ * Cạnh khép kín (đỉnh cuối → đỉnh đầu) vẽ nét đứt để phân biệt.
+ */
+@Composable
+private fun AreaPreview(verts: List<Cogo.Pt>, modifier: Modifier = Modifier) {
+    val outline   = MaterialTheme.colorScheme.primary
+    val fillCol   = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+    val closeCol  = MaterialTheme.colorScheme.error
+    val labelCol  = MaterialTheme.colorScheme.onSurface
+
+    Surface(
+        modifier = modifier,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+            if (verts.size < 2) return@Canvas
+            val minN = verts.minOf { it.n }; val maxN = verts.maxOf { it.n }
+            val minE = verts.minOf { it.e }; val maxE = verts.maxOf { it.e }
+            val spanN = (maxN - minN).coerceAtLeast(1e-6)
+            val spanE = (maxE - minE).coerceAtLeast(1e-6)
+            val pad = 22f
+            val s = minOf((size.width - pad * 2) / spanE, (size.height - pad * 2) / spanN)
+            val cx = size.width / 2f; val cy = size.height / 2f
+            val mN = (minN + maxN) / 2.0; val mE = (minE + maxE) / 2.0
+            fun px(e: Double) = (cx + (e - mE) * s).toFloat()
+            fun py(n: Double) = (cy - (n - mN) * s).toFloat()   // Bắc lên trên
+
+            val pts = verts.map { androidx.compose.ui.geometry.Offset(px(it.e), py(it.n)) }
+
+            // Tô nền vùng (thấy ngay nếu hình bị thắt nút)
+            if (pts.size >= 3) {
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(pts[0].x, pts[0].y)
+                    pts.drop(1).forEach { lineTo(it.x, it.y) }
+                    close()
+                }
+                drawPath(path, fillCol)
+            }
+            // Các cạnh theo thứ tự bấm
+            for (i in 0 until pts.lastIndex) {
+                drawLine(outline, pts[i], pts[i + 1], strokeWidth = 2.5f)
+            }
+            // Cạnh khép kín — nét đứt, màu khác
+            if (pts.size >= 3) {
+                drawLine(
+                    closeCol, pts.last(), pts.first(), strokeWidth = 2f,
+                    pathEffect = androidx.compose.ui.graphics.PathEffect
+                        .dashPathEffect(floatArrayOf(8f, 6f))
+                )
+            }
+            // Đỉnh + số thứ tự
+            pts.forEachIndexed { i, o ->
+                drawCircle(outline, radius = 4f, center = o)
+                drawContext.canvas.nativeCanvas.drawText(
+                    "${i + 1}", o.x + 7f, o.y - 5f,
+                    android.graphics.Paint().apply {
+                        isAntiAlias = true
+                        textSize = 26f
+                        isFakeBoldText = true
+                        color = android.graphics.Color.argb(
+                            255, (labelCol.red * 255).toInt(),
+                            (labelCol.green * 255).toInt(), (labelCol.blue * 255).toInt()
+                        )
+                    }
+                )
+            }
+        }
     }
 }
 
