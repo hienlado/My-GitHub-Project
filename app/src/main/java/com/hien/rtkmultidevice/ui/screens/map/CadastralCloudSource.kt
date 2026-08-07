@@ -23,8 +23,26 @@ object CadastralCloudSource {
     /** Kinh tuyến trục VN-2000 khu vực (BR-VT: 107°45'). */
     const val CENTRAL_MERIDIAN = 107.75
 
-    /** Danh sách xã/phường (slug khớp thư mục pipeline -> tên hiển thị). */
-    val COMMUNES = listOf(
+    // ══════════════════════════════════════════════════════════
+    // CHỈ MỤC ĐƠN VỊ HÀNH CHÍNH — 2 cấp: Tỉnh/Thành → Xã/Phường
+    // ══════════════════════════════════════════════════════════
+
+    /** Một xã/phường. slug PHẢI trùng tên thư mục output của pipeline. */
+    data class Commune(val slug: String, val name: String)
+
+    /**
+     * Một tỉnh/thành.
+     * @param cm Kinh tuyến trục VN-2000 của địa phương (độ) — mỗi tỉnh một giá trị.
+     */
+    data class Province(
+        val code     : String,
+        val name     : String,
+        val cm       : Double,
+        val communes : List<Commune>
+    )
+
+    /** Xã/phường thuộc TP. Hồ Chí Minh (BR-VT cũ sau sáp nhập). */
+    private val COMMUNE_LIST_HCM = listOf(
         "phuongbaria" to "Phường Bà Rịa",
         "phuonglonghuong" to "Phường Long Hương",
         "phuongphumy" to "Phường Phú Mỹ",
@@ -49,7 +67,42 @@ object CadastralCloudSource {
         "xaphuochai" to "Xã Phước Hải",
         "xaxuanson" to "Xã Xuân Sơn",
         "xaxuyenmoc" to "Xã Xuyên Mộc",
+    ).map { (s, n) -> Commune(s, n) }
+
+    /**
+     * Danh mục bản đồ theo tỉnh/thành.
+     *
+     * Slug xã Đồng Nai có tiền tố "dn" để KHÔNG trùng với xã cùng tên ở nơi khác —
+     * slug là tên thư mục nên phải duy nhất trên toàn hệ thống.
+     *
+     * LƯU Ý THỨ TỰ: COMMUNE_LIST_HCM phải khai báo TRƯỚC PROVINCES,
+     * vì thuộc tính trong object khởi tạo theo đúng thứ tự viết.
+     */
+    val PROVINCES = listOf(
+        Province(
+            code = "hcm", name = "TP. Hồ Chí Minh", cm = 107.75,
+            communes = COMMUNE_LIST_HCM
+        ),
+        Province(
+            code = "dongnai", name = "Tỉnh Đồng Nai", cm = 107.75,
+            communes = listOf(
+                Commune("dnxuandong", "Xã Xuân Đông"),
+                // Bổ sung dần từ D:\_STORAGE\DONGNAI\ :
+                // Commune("dnbaobinh", "Xã Bảo Bình"),
+            )
+        )
     )
+
+    /** Tra tỉnh/thành chứa một xã (để biết kinh tuyến trục dùng cho xã đó). */
+    fun provinceOf(communeSlug: String): Province? =
+        PROVINCES.firstOrNull { p -> p.communes.any { it.slug == communeSlug } }
+
+    /**
+     * Danh sách xã/phường PHẲNG (slug -> tên) — giữ nguyên để mã cũ dùng tiếp.
+     * Gộp từ mọi tỉnh/thành trong PROVINCES.
+     */
+    val COMMUNES: List<Pair<String, String>>
+        get() = PROVINCES.flatMap { p -> p.communes.map { it.slug to it.name } }
 
     /** Tờ + thửa sau khi tách chuỗi nhập. */
     data class SheetParcel(val to: String, val thua: String?)

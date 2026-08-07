@@ -126,6 +126,15 @@ Dữ liệu ra: `data/output/_batch_hashes.json`, `_sheet_index.json`, `sheets/_
 - `build_deploy.bat batch-inc` — chỉ xử lý MDB đã đổi (so MD5).
 - `--push` đẩy MDB đã cập nhật lên **bucket GCS mới**; máy khác `--pull` để lấy về (thay cho copy thủ công từ `BDDC_24072025` cũ).
 
+### 4.4b Chỉ mục hành chính 2 CẤP (mới)
+`CadastralCloudSource` giờ có `Commune(slug,name)` + `Province(code,name,cm,communes)` và `PROVINCES`:
+- **TP. Hồ Chí Minh** (BR-VT cũ) — 24 xã/phường, KTT 107°45'
+- **Tỉnh Đồng Nai** — `dnxuandong` = Xã Xuân Đông (KTT 107°45'); bổ sung dần từ `D:\_STORAGE\DONGNAI\`
+`COMMUNES` (phẳng slug→tên) vẫn giữ, tự gộp từ `PROVINCES` nên mã cũ chạy nguyên.
+⚠ **Slug Đồng Nai có tiền tố `dn`** để không trùng xã cùng tên tỉnh khác — slug là TÊN THƯ MỤC nên phải duy nhất.
+⚠ **Thứ tự khai báo**: `COMMUNE_LIST_HCM` phải đứng TRƯỚC `PROVINCES` (thuộc tính trong `object` khởi tạo theo thứ tự viết, sai thứ tự → null).
+Pipeline: `appsettings.json → Pipeline.CommuneNameMap` đã thêm `"dnxuandong": "Xã Xuân Đông"`. Slug output = **tên thư mục con trong `data\input\`** (`MetadataExtractor.ParseCommuneSlug`).
+
 ### 4.4 Đơn vị hành chính mới (24) — nguồn `D:\_STORAGE`
 Đổi tên thư mục theo tiền tố `xa*`/`phuong*` (vd `phuongbaria`, `phuonglonghuong`, `xachauduc`, `xadatdo`, `xalonghai`, `xangaigiao`…). Bảng chuyển (60 cũ→24 mới) tạo từ các file `DS TO BDDC DON VI SAP NHAP_*_GIU MA.xlsx` (layout BA RIA có 3 block → dò cột "Số tờ" tổng quát). Bản sao bảng cho app: `app/.../assets/cadastral_convert.json`.
 

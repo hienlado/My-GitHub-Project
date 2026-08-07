@@ -364,22 +364,35 @@ fun OwnerSearchButton(
                             .heightIn(max = 400.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        CadastralCloudSource.COMMUNES.forEach { (slug, name) ->
+                        // Nhóm theo TỈNH/THÀNH — danh mục đã có nhiều địa phương
+                        CadastralCloudSource.PROVINCES.forEach { prov ->
                             Text(
-                                name,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        communeFilter = slug
-                                        searched = false
-                                        pickCommune = false
-                                    }
-                                    .padding(vertical = 10.dp),
-                                fontWeight = if (communeFilter == slug) FontWeight.Bold else FontWeight.Normal,
-                                color = if (communeFilter == slug) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurface
+                                prov.name,
+                                modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp),
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 13.sp
                             )
                             HorizontalDivider()
+                            prov.communes.forEach { c ->
+                                Text(
+                                    c.name,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            communeFilter = c.slug
+                                            searched = false
+                                            pickCommune = false
+                                        }
+                                        .padding(vertical = 10.dp, horizontal = 8.dp),
+                                    fontWeight = if (communeFilter == c.slug) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (communeFilter == c.slug) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurface
+                                )
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                )
+                            }
                         }
                     }
                 },
@@ -466,11 +479,27 @@ fun CadastralCloudDialog(
                             expanded = communeExpanded,
                             onDismissRequest = { communeExpanded = false }
                         ) {
-                            CadastralCloudSource.COMMUNES.forEach { c ->
+                            // Nhóm theo tỉnh/thành: tiêu đề không bấm được, rồi tới các xã
+                            CadastralCloudSource.PROVINCES.forEach { prov ->
                                 DropdownMenuItem(
-                                    text = { Text(c.second) },
-                                    onClick = { commune = c; communeExpanded = false }
+                                    text = {
+                                        Text(
+                                            prov.name, fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary, fontSize = 13.sp
+                                        )
+                                    },
+                                    onClick = { },
+                                    enabled = false
                                 )
+                                prov.communes.forEach { c ->
+                                    DropdownMenuItem(
+                                        text = { Text("   ${c.name}") },
+                                        onClick = {
+                                            commune = c.slug to c.name
+                                            communeExpanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
