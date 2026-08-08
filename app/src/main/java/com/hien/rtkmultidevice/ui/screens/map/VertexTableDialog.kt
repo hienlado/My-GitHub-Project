@@ -9,7 +9,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -85,6 +89,26 @@ fun VertexTableDialog(
         },
         text = {
             Column {
+                // ── Hành động chính — đặt ở ĐẦU để luôn nhìn thấy ──
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    if (onExportPdf != null && feature.rawPoints.size >= 3) {
+                        Button(
+                            onClick = onExportPdf,
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Lập biên bản", fontSize = 12.sp) }
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    // Đưa toàn bộ đỉnh sang ngăn "Đỉnh thửa" ở Danh sách để
+                    // định vị điểm / cạnh / cả đường bao.
+                    if (onSendToList != null && feature.rawPoints.size >= 2) {
+                        OutlinedButton(
+                            onClick = { onSendToList(); onDismiss() },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Gửi Danh sách", fontSize = 12.sp) }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+
                 // ── Header bảng ─────────────────────────────
                 Row(
                     modifier = Modifier
@@ -155,22 +179,10 @@ fun VertexTableDialog(
                 }
             }
         },
+        // CHỈ để "Đóng" ở hàng nút. Các hành động chính đã đưa lên ĐẦU thân
+        // hộp thoại — hàng nút của AlertDialog hẹp, nhãn tiếng Việt dài sẽ
+        // bị tràn/xuống dòng và nút "Biên bản" biến mất khỏi tầm nhìn.
         confirmButton = {
-            Row {
-                // Xuất biên bản: XML trước để kiểm tra/sửa, rồi mới PDF
-                if (onExportPdf != null && feature.rawPoints.size >= 3) {
-                    TextButton(onClick = onExportPdf) { Text("Biên bản") }
-                }
-                // Đưa toàn bộ đỉnh sang ngăn "Đỉnh thửa" trong Danh sách để dùng
-                // cho định vị điểm HOẶC định vị tuyến (2 đỉnh / cả đường bao).
-                if (onSendToList != null && feature.rawPoints.size >= 2) {
-                    TextButton(onClick = { onSendToList(); onDismiss() }) {
-                        Text("Gửi DS")
-                    }
-                }
-            }
-        },
-        dismissButton = {
             TextButton(onClick = onDismiss) { Text("Đóng") }
         }
     )
