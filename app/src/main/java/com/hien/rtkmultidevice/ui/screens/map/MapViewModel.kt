@@ -85,14 +85,25 @@ class MapViewModel @Inject constructor(
     /** Tải chỉ mục khung tờ 1 lần (cache). */
     fun loadSheetFramesIfNeeded() {
         if (_sheetFrames.value.isNotEmpty()) return
-        viewModelScope.launch {
-            val list = if (_offlineMode.value) CadastralLocalSource.loadIndex(appContext)
-                       else CadastralCloudSource.loadIndex()
-            if (list.isEmpty()) _cloudMessage.value =
-                if (_offlineMode.value) "Chưa có chỉ mục tờ offline (chép sheets/ vào máy)"
-                else "Chưa tải được chỉ mục tờ"
-            _sheetFrames.value = list
-        }
+        viewModelScope.launch { ensureSheetFrames() }
+    }
+
+    /**
+     * Nạp chỉ mục khung tờ và CHỜ XONG mới trả về.
+     *
+     * Bản `loadSheetFramesIfNeeded()` chỉ khởi chạy coroutine rồi trả về ngay —
+     * ai gọi xong đọc `_sheetFrames.value` liền sẽ thấy RỖNG. Đó là lý do
+     * `loadAdjacentSheets` luôn thoát sớm và sơ hoạ không có tờ giáp biên.
+     */
+    private suspend fun ensureSheetFrames(): List<CadastralCloudSource.SheetBox> {
+        if (_sheetFrames.value.isNotEmpty()) return _sheetFrames.value
+        val list = if (_offlineMode.value) CadastralLocalSource.loadIndex(appContext)
+                   else CadastralCloudSource.loadIndex()
+        if (list.isEmpty()) _cloudMessage.value =
+            if (_offlineMode.value) "Chưa có chỉ mục tờ offline (chép sheets/ vào máy)"
+            else "Chưa tải được chỉ mục tờ"
+        _sheetFrames.value = list
+        return list
     }
 
     // ── "Tôi đang ở thửa nào?" (tra ngược điểm RTK -> xã/tờ/thửa) ──
@@ -310,8 +321,7 @@ class MapViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             runCatching {
-                loadSheetFramesIfNeeded()
-                val idx = _sheetFrames.value
+                val idx = ensureSheetFrames()      // CHỜ chỉ mục nạp xong
                 if (idx.isEmpty()) return@runCatching
 
                 // Bao hình thửa theo WGS-84 + nới rộng để chạm sang tờ bên

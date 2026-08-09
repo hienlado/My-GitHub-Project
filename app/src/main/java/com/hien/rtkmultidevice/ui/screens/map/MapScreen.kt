@@ -763,6 +763,13 @@ private fun updateMapOverlays(
  *   POLYLINE → marker ở 2 đầu; nếu ≤ 10 đỉnh thì tất cả đỉnh
  *   POLYGON  → tất cả đỉnh (tối đa 50 đỉnh/feature)
  */
+/**
+ * Trần số khung tờ vẽ cùng lúc. Mỗi tờ tốn 2 overlay (viền + nhãn) nên
+ * 250 tờ ≈ 500 overlay — vẫn mượt. Thu nhỏ quá thì tự cắt bớt, phóng to
+ * lại hiện đủ.
+ */
+private const val MAX_SHEET_FRAMES = 250
+
 /** Vẽ overlay KHUNG TỜ (bbox WGS84) + nhãn số tờ; chạm khung → tải tờ đó. */
 private fun updateSheetFrames(
     mapView: MapView,
@@ -779,12 +786,29 @@ private fun updateSheetFrames(
         }
         return
     }
-    if (already == frames.size) return   // đã vẽ rồi
+
+    // ── CHỈ VẼ KHUNG TỜ TRONG TẦM NHÌN ──
+    // Chỉ mục có ~4600 tờ; vẽ hết = ~9200 overlay (mỗi tờ 1 viền + 1 nhãn),
+    // osmdroid phải duyệt lại toàn bộ mỗi lần kéo/thu phóng ⇒ LAG NẶNG.
+    // Lọc theo khung nhìn hiện tại (nới 30%) và chặn trần số lượng.
+    val bb = mapView.boundingBox
+    val padLat = (bb.latNorth - bb.latSouth) * 0.3
+    val padLon = (bb.lonEast - bb.lonWest) * 0.3
+    val visible = frames.asSequence()
+        .filter { b ->
+            b.latMax >= bb.latSouth - padLat && b.latMin <= bb.latNorth + padLat &&
+            b.lonMax >= bb.lonWest - padLon && b.lonMin <= bb.lonEast + padLon
+        }
+        .take(MAX_SHEET_FRAMES)
+        .toList()
+
+    // Không đổi số lượng → giữ nguyên, khỏi dựng lại
+    if (already == visible.size && visible.isNotEmpty()) return
 
     mapView.overlays.removeAll { it is Polyline && it.title == "sheetframe" }
     mapView.overlays.removeAll { it is Marker && it.title?.startsWith("sf_") == true }
 
-    frames.forEach { box ->
+    visible.forEach { box ->
         mapView.overlays.add(Polyline(mapView).apply {
             title = "sheetframe"
             infoWindow = null
