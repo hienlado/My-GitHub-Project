@@ -218,6 +218,9 @@ object BienBanSketch {
         val dn = max((nMax - nMin) * expand, minExpandM)
         val de = max((eMax - eMin) * expand, minExpandM)
 
+        // QUAN TRỌNG: phải SẮP XẾP THEO KHOẢNG CÁCH rồi mới cắt.
+        // Cắt theo thứ tự danh sách sẽ vớ phải thửa xa nằm đầu tờ và bỏ mất
+        // chính những thửa ôm sát thửa chính (chúng thường nằm cuối danh sách).
         return all.asSequence()
             .filter { it.id != mainId && it.type == VectorLayerImporter.FeatureType.POLYGON }
             .filter { it.rawPoints.size >= 3 }
@@ -227,9 +230,16 @@ object BienBanSketch {
                 val be0 = vs.minOf { it.second }; val be1 = vs.maxOf { it.second }
                 val hit = bn1 >= nMin - dn && bn0 <= nMax + dn &&
                           be1 >= eMin - de && be0 <= eMax + de
-                if (hit) NeighbourParcel(f.soThua.ifBlank { f.label }, vs) else null
+                if (!hit) return@mapNotNull null
+                // KHE HỞ giữa hai bao hình: 0 = chạm/chồng nhau (giáp biên thật)
+                val gapN = max(0.0, max(nMin - bn1, bn0 - nMax))
+                val gapE = max(0.0, max(eMin - be1, be0 - eMax))
+                val gap  = kotlin.math.hypot(gapN, gapE)
+                Triple(gap, f, vs)
             }
+            .sortedBy { it.first }            // gần nhất lên trước
             .take(maxCount)
+            .map { (_, f, vs) -> NeighbourParcel(f.soThua.ifBlank { f.label }, vs) }
             .toList()
     }
 
