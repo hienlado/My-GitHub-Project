@@ -198,17 +198,25 @@ object BienBanSketch {
         val vertices : List<Pair<Double, Double>>   // (N, E)
     )
 
+    /**
+     * @param minExpandM Bán kính tìm TỐI THIỂU (mét) quanh thửa chính.
+     *   Chỉ nới theo tỉ lệ kích thước thửa là chưa đủ: thửa nhỏ 20–40 m sẽ có
+     *   vùng tìm rất hẹp, bỏ sót thửa bên kia đường/kênh và thửa thuộc tờ khác.
+     */
     fun pickNeighbours(
-        all       : List<VectorLayerImporter.VectorFeature>,
-        mainId    : Int,
-        mainVerts : List<Pair<Double, Double>>,
-        expand    : Double = 1.2,
-        maxCount  : Int = 12
+        all        : List<VectorLayerImporter.VectorFeature>,
+        mainId     : Int,
+        mainVerts  : List<Pair<Double, Double>>,
+        expand     : Double = 1.2,
+        maxCount   : Int = 40,
+        minExpandM : Double = 120.0
     ): List<NeighbourParcel> {
         if (mainVerts.isEmpty()) return emptyList()
         val nMin = mainVerts.minOf { it.first };  val nMax = mainVerts.maxOf { it.first }
         val eMin = mainVerts.minOf { it.second }; val eMax = mainVerts.maxOf { it.second }
-        val dn = (nMax - nMin) * expand; val de = (eMax - eMin) * expand
+        // rawPoints là VN-2000 (mét) nên so sánh trực tiếp bằng mét
+        val dn = max((nMax - nMin) * expand, minExpandM)
+        val de = max((eMax - eMin) * expand, minExpandM)
 
         return all.asSequence()
             .filter { it.id != mainId && it.type == VectorLayerImporter.FeatureType.POLYGON }

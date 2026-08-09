@@ -321,25 +321,40 @@ class MapViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             runCatching {
-                val idx = ensureSheetFrames()      // CHỜ chỉ mục nạp xong
-                if (idx.isEmpty()) return@runCatching
+                var idx = ensureSheetFrames()      // CHỜ chỉ mục nạp xong
+                // Chế độ Cloud mà không lấy được chỉ mục (mất mạng / đã gỡ billing)
+                // thì dùng chỉ mục OFFLINE — trước đây im lặng bỏ qua.
+                if (idx.isEmpty() && !_offlineMode.value) {
+                    idx = CadastralLocalSource.loadIndex(appContext)
+                    _sheetFrames.value = idx
+                }
+                if (idx.isEmpty()) {
+                    _cloudMessage.value = "Sơ hoạ: chưa có chỉ mục tờ → không tìm được tờ giáp biên"
+                    return@runCatching
+                }
 
                 // Bao hình thửa theo WGS-84 + nới rộng để chạm sang tờ bên
                 val gps = feature.geoPoints
                 if (gps.isEmpty()) return@runCatching
                 val latMin = gps.minOf { it.latitude };  val latMax = gps.maxOf { it.latitude }
                 val lonMin = gps.minOf { it.longitude }; val lonMax = gps.maxOf { it.longitude }
-                val dLat = ((latMax - latMin).coerceAtLeast(1e-5)) * 1.5
-                val dLon = ((lonMax - lonMin).coerceAtLeast(1e-5)) * 1.5
+
+                // Bán kính tìm TUYỆT ĐỐI (mét), KHÔNG tỉ lệ theo kích thước thửa.
+                // Trước đây nới 1.5 lần bề rộng thửa: thửa 40 m chỉ dò trong ~60 m
+                // nên tờ kề có bao hình bắt đầu xa hơn chút là trượt hết.
+                val searchM = 250.0
+                val dLat = searchM / 111_320.0                       // 1° vĩ ≈ 111.32 km
+                val dLon = searchM / (111_320.0 * kotlin.math.cos(Math.toRadians(latMin)))
 
                 val touching = idx.filter { b ->
                     b.lonMax >= lonMin - dLon && b.lonMin <= lonMax + dLon &&
                     b.latMax >= latMin - dLat && b.latMin <= latMax + dLat
                 }
                 var added = 0
+                var skipped = 0
                 for (b in touching) {
                     val key = "${b.commune}/${b.to}"
-                    if (vectorLayerHolder.isLoaded(key)) continue
+                    if (vectorLayerHolder.isLoaded(key)) { skipped++; continue }
                     val r = if (_offlineMode.value)
                         CadastralLocalSource.loadSheet(appContext, b.commune, b.to)
                     else CadastralCloudSource.loadSheet(b.commune, b.to)
@@ -347,7 +362,13 @@ class MapViewModel @Inject constructor(
                         vectorLayerHolder.addSheet(key, r.layer); added++
                     }
                 }
-                if (added > 0) _cloudMessage.value = "Đã nạp thêm $added tờ kề để vẽ đủ ranh giáp biên"
+                // Luôn báo kết quả để CHẨN ĐOÁN được khi sơ hoạ vẫn thiếu ranh
+                val nb = neighboursOf(feature).size
+                _cloudMessage.value =
+                    "Sơ hoạ: ${touching.size} tờ trong bán kính ${searchM.toInt()}m " +
+                    "(nạp mới $added, đã có $skipped) → $nb thửa giáp biên"
+            }.onFailure {
+                _cloudMessage.value = "Sơ hoạ — lỗi nạp tờ kề: ${it.message}"
             }
             onDone()
         }
