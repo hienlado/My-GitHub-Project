@@ -33,8 +33,15 @@ object WifiInfoHelper {
 
     private const val TAG = "WifiInfoHelper"
 
-    /** Các cổng dữ liệu TCP phổ biến của máy thu RTK (thứ tự ưu tiên khi dò). */
-    val COMMON_PORTS = listOf(9901, 2000, 6000, 8000, 9000, 8080, 1958)
+    /**
+     * Các cổng dữ liệu TCP phổ biến của máy thu RTK (thứ tự ưu tiên khi dò).
+     *
+     *  9901  — Sinov M6 Pro (TCP Server)
+     * 12345  — ComNav T30 (TCP1/WEBNTRIP1, luồng NMEA)
+     * 12346  — ComNav T30 (TCP2/WEBNTRIP2, luồng RTD)
+     *  2000/6000/8000/9000/8080/1958 — các hãng khác
+     */
+    val COMMON_PORTS = listOf(9901, 12345, 2000, 6000, 8000, 9000, 12346, 8080, 1958)
 
     /**
      * Tên WiFi đang kết nối = tên máy thu RTK.

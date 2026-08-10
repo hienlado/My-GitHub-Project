@@ -184,18 +184,31 @@ class ConnectionViewModel @Inject constructor(
                 .firstOrNull { it.type == DeviceInfo.ConnectionType.TCP_WIFI && it.name == name }
                 ?.address?.substringAfter(':')?.toIntOrNull()
 
-            val port = WifiInfoHelper.findOpenPort(context, host, remembered)
+            var target = host
+            var port = WifiInfoHelper.findOpenPort(context, host, remembered)
+
+            // Gateway KHÔNG phải lúc nào cũng là máy thu:
+            //   • Sinov M6 Pro là điểm phát WiFi  → máy ở 192.168.1.1 (gateway)
+            //   • ComNav T30 phát WiFi nhưng máy ở 192.168.1.8, gateway lại là .1
+            // Không thấy cổng nào mở ở gateway thì TỰ QUÉT MẠNG thay vì báo lỗi.
+            if (port == null) {
+                _connectingStep.value = "Đang quét mạng tìm ${name ?: "máy thu"}..."
+                val found = WifiInfoHelper.scanLan(context, maxResults = 1).firstOrNull()
+                if (found != null) { target = found.host; port = found.port }
+            }
+
             if (port == null) {
                 _isLoading.value = false
                 _connectingStep.value = ""
                 _connectionState.value = ConnectionState.Error(
-                    "Tìm thấy ${name ?: "máy thu"} nhưng máy chưa mở kênh dữ liệu.\n" +
-                    "Hãy bật máy thu, hoặc trong trang cấu hình của máy bật mục truyền dữ liệu (TCP Server)."
+                    "Tìm thấy ${name ?: "máy thu"} nhưng không có kênh dữ liệu nào đang mở.\n" +
+                    "Trong trang cấu hình của máy, kiểm tra mục truyền dữ liệu " +
+                    "(TCP Server / Data Transfer) đã bật và ghi lại số cổng."
                 )
                 return@launch
             }
 
-            _tcpHost.value = host
+            _tcpHost.value = target
             _tcpPort.value = port.toString()
             _isLoading.value = false      // connectTcp() sẽ tự bật lại
             connectTcp()
