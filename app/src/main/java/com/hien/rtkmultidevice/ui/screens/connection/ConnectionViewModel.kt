@@ -179,22 +179,41 @@ class ConnectionViewModel @Inject constructor(
             _connectionState.value = ConnectionState.Connecting
             _connectingStep.value = "Đang tìm ${name ?: "máy thu"}..."
 
-            // Cổng đã lưu của chính máy này (nếu từng kết nối)
-            val remembered = recentDevices.value
+            // ── Thứ tự ưu tiên: chắc chắn nhất trước, mò mẫm sau ──
+            var target: String? = null
+            var port  : Int?    = null
+
+            // 1) ĐÃ TỪNG KẾT NỐI máy này → dùng lại ĐÚNG host:port cũ.
+            //    Trước đây chỉ nhớ mỗi cổng rồi vẫn dò ở gateway ⇒ T30 (ở .8) luôn trượt.
+            recentDevices.value
                 .firstOrNull { it.type == DeviceInfo.ConnectionType.TCP_WIFI && it.name == name }
-                ?.address?.substringAfter(':')?.toIntOrNull()
+                ?.address?.split(':')
+                ?.takeIf { it.size == 2 }
+                ?.let { (h, p) ->
+                    val pi = p.toIntOrNull()
+                    if (pi != null && WifiInfoHelper.probeHost(context, h, pi)) {
+                        target = h; port = pi
+                    }
+                }
 
-            var target = host
-            var port = WifiInfoHelper.findOpenPort(context, host, remembered)
+            // 2) HỒ SƠ MÁY theo tên WiFi (T30 → .8:12345, M6 Pro → gateway:9901).
+            if (port == null) {
+                WifiInfoHelper.findByProfile(context, name, host)?.let { (h, p) ->
+                    target = h; port = p
+                }
+            }
 
-            // Gateway KHÔNG phải lúc nào cũng là máy thu:
-            //   • Sinov M6 Pro là điểm phát WiFi  → máy ở 192.168.1.1 (gateway)
-            //   • ComNav T30 phát WiFi nhưng máy ở 192.168.1.8, gateway lại là .1
-            // Không thấy cổng nào mở ở gateway thì TỰ QUÉT MẠNG thay vì báo lỗi.
+            // 3) Dò các cổng phổ biến ngay tại gateway.
+            if (port == null) {
+                WifiInfoHelper.findOpenPort(context, host)?.let { target = host; port = it }
+            }
+
+            // 4) Cuối cùng mới quét cả mạng (chậm nhất).
             if (port == null) {
                 _connectingStep.value = "Đang quét mạng tìm ${name ?: "máy thu"}..."
-                val found = WifiInfoHelper.scanLan(context, maxResults = 1).firstOrNull()
-                if (found != null) { target = found.host; port = found.port }
+                WifiInfoHelper.scanLan(context, maxResults = 1).firstOrNull()?.let {
+                    target = it.host; port = it.port
+                }
             }
 
             if (port == null) {
@@ -208,7 +227,7 @@ class ConnectionViewModel @Inject constructor(
                 return@launch
             }
 
-            _tcpHost.value = target
+            _tcpHost.value = target ?: host
             _tcpPort.value = port.toString()
             _isLoading.value = false      // connectTcp() sẽ tự bật lại
             connectTcp()

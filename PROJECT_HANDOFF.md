@@ -95,6 +95,13 @@ Asset: `app/src/main/assets/cadastral_convert.json` — ánh xạ **60 xã cũ �
 - **Xuất CSV:** `CsvExporter.buildAllMeasuredCsv()` + `ProjectViewModel.exportAllMeasuredPoints()` — gộp **tất cả điểm ĐO GNSS thật** từ mọi job (lọc `fixQuality > 0`, loại điểm import/CAD/thủ công). Nút SaveAlt trên `ProjectScreen`.
 - **Bluetooth keywords:** `RTK_DEVICE_KEYWORDS` đã thêm STEC (`STEC/SE1018/SE101`) và SinoGNSS/ComNav (`Sino/ComNav/T30/M6/N5/N6`).
 - **NTRIP:** `NtripClient` (rover lấy RTCM), `NtripProxyServer` (điện thoại làm caster nội bộ cho máy nối WiFi).
+- **🔑 CHUẨN KẾT NỐI WiFi — `WifiInfoHelper.PROFILES` (đọc trước khi sửa):** mỗi dòng máy có **địa chỉ + cổng CỐ ĐỊNH**, nhận dạng qua **tên WiFi**:
+  | Máy | SSID | Host | Cổng |
+  |---|---|---|---|
+  | ComNav T30 | `T30-…` | **192.168.1.8** (KHÔNG phải gateway) | **12345** (NMEA), 12346 (RTD) |
+  | Sinov M6 Pro | `GNSS-…` | **gateway** (máy là điểm phát) | **9901** |
+  `quickConnectWifi` chạy theo thứ tự **chắc chắn → mò mẫm**: (1) host:port đã lưu của đúng máy đó → (2) `findByProfile()` theo SSID → (3) dò cổng phổ biến ở gateway → (4) quét cả LAN. Thêm máy mới ⇒ **thêm 1 dòng vào `PROFILES`**, đừng nhét thêm cổng vào `COMMON_PORTS` rồi để nó dò mò.
+  ⚠ Lỗi cũ: chỉ nhớ mỗi **cổng** rồi vẫn dò ở **gateway** ⇒ T30 (ở .8) luôn trượt; và fallback quét LAN vô điều kiện làm M6 Pro chậm/bắt nhầm thiết bị khác.
 - **Kết nối 1 chạm theo TÊN MÁY (mới):** `core/network/WifiInfoHelper.kt` — lấy **SSID làm tên máy thu** (VD `GNSS-3366525`), `gatewayIp()` = địa chỉ máy, `findOpenPort()` tự dò cổng (9901/2000/6000/8000/9000/8080/1958, ưu tiên cổng đã dùng lần trước, socket ép qua WiFi). `ConnectionViewModel.quickConnectWifi()` + `wifiDeviceName`; thiết bị TCP lưu tên = tên máy (không còn "TCP 192.168.1.1"). UI: `QuickConnectCard` ở đầu màn Kết nối, thẻ đã lưu chỉ hiện tên + "WiFi · đã lưu", IP/port nằm trong mục **Nâng cao thu gọn**. `friendlyTcpError()` đổi ECONNREFUSED/timeout thành câu tiếng Việt dễ hiểu.
 
 ### 3.4 File build/tiện ích (root)
@@ -127,6 +134,10 @@ Dữ liệu ra: `data/output/_batch_hashes.json`, `_sheet_index.json`, `sheets/_
 ### 4.3 Lệnh incremental & đa máy
 - `build_deploy.bat batch-inc` — chỉ xử lý MDB đã đổi (so MD5).
 - `--push` đẩy MDB đã cập nhật lên **bucket GCS mới**; máy khác `--pull` để lấy về (thay cho copy thủ công từ `BDDC_24072025` cũ).
+
+### 4.4c ⚠ BẪY: batch-inc XOÁ SẠCH chỉ mục chủ sử dụng
+`CadastralProcessor._ownerIndex` chỉ chứa tờ xử lý trong lần chạy; `FinalizeSheetIndexAsync` **ghi đè** `sheets/_owners.json`. Chỉ mục TỜ có gộp lần trước (`SeedSheetIndex(prevIndex…)`) nhưng chỉ mục CHỦ thì **không** ⇒ thêm 1 xã Đồng Nai làm `_owners.json` từ **641.631 → 13.037 bản ghi**, mất toàn bộ chủ sử dụng HCM, app báo *"Không tìm thấy tên chủ khớp"*.
+**Đã sửa:** thêm `SeedOwnerIndex()` + bước 5b trong `RunBatchIncAsync` nạp lại `_owners.json` cũ cho các tờ không đụng tới. **Phải chạy lại pipeline** để dựng lại chỉ mục đầy đủ.
 
 ### 4.4b Chỉ mục hành chính 2 CẤP (mới)
 `CadastralCloudSource` giờ có `Commune(slug,name)` + `Province(code,name,cm,communes)` và `PROVINCES`:

@@ -43,6 +43,55 @@ object WifiInfoHelper {
      */
     val COMMON_PORTS = listOf(9901, 12345, 2000, 6000, 8000, 9000, 12346, 8080, 1958)
 
+    // ══════════════════════════════════════════════════════════
+    // HỒ SƠ MÁY THU — dùng thông tin ĐÃ BIẾT thay vì dò mò
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * Mỗi dòng máy có địa chỉ + cổng cố định. Nhận dạng qua TÊN WIFI của máy
+     * rồi thử đúng địa chỉ/cổng của nó ⇒ kết nối trong 1–2 lần thử thay vì
+     * dò 9 cổng × nhiều địa chỉ.
+     *
+     * @param hosts    "" = dùng gateway của mạng WiFi hiện tại
+     */
+    data class Profile(
+        val label     : String,
+        val ssidRegex : Regex,
+        val hosts     : List<String>,
+        val ports     : List<Int>
+    )
+
+    val PROFILES = listOf(
+        // ComNav T30: WiFi "T30-T31Uxxxxx"; máy ở .8 (KHÔNG phải gateway), NMEA cổng 12345
+        Profile("ComNav T30", Regex("^T30[-_]", RegexOption.IGNORE_CASE),
+            hosts = listOf("192.168.1.8", ""), ports = listOf(12345, 12346)),
+        // Sinov M6 Pro: WiFi "GNSS-3366525"; máy CHÍNH LÀ điểm phát → gateway, cổng 9901
+        Profile("Sinov M6 Pro", Regex("^GNSS[-_]", RegexOption.IGNORE_CASE),
+            hosts = listOf("", "192.168.1.1"), ports = listOf(9901, 2000)),
+    )
+
+    fun profileFor(ssid: String?): Profile? =
+        ssid?.let { s -> PROFILES.firstOrNull { it.ssidRegex.containsMatchIn(s) } }
+
+    /**
+     * Tìm địa chỉ + cổng của máy thu theo HỒ SƠ (nhanh, chính xác).
+     * @return (host, port) hoặc null nếu hồ sơ không khớp/không mở cổng.
+     */
+    suspend fun findByProfile(
+        context: Context, ssid: String?, gateway: String?
+    ): Pair<String, Int>? = withContext(Dispatchers.IO) {
+        val p = profileFor(ssid) ?: return@withContext null
+        val hosts = p.hosts.map { if (it.isBlank()) gateway else it }
+            .filterNotNull().filter { it.isNotBlank() }.distinct()
+        for (h in hosts) for (port in p.ports) {
+            if (probe(context, h, port, 1200)) {
+                Log.d(TAG, "Khớp hồ sơ ${p.label}: $h:$port")
+                return@withContext h to port
+            }
+        }
+        null
+    }
+
     /**
      * Tên WiFi đang kết nối = tên máy thu RTK.
      * Trả null nếu không nối WiFi hoặc không đọc được tên.
@@ -101,6 +150,11 @@ object WifiInfoHelper {
                 c.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
         }
     }.getOrNull()
+
+    /** Thử 1 địa chỉ:cổng cụ thể — dùng để xác nhận lại máy đã từng kết nối. */
+    suspend fun probeHost(
+        context: Context, host: String, port: Int, timeoutMs: Int = 1200
+    ): Boolean = withContext(Dispatchers.IO) { probe(context, host, port, timeoutMs) }
 
     /**
      * Thử mở nhanh 1 cổng (không đọc dữ liệu) để biết cổng có dịch vụ hay không.
