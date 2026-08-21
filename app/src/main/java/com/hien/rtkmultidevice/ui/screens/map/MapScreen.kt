@@ -1079,6 +1079,45 @@ private fun VectorFeatureSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
+            // ── QUY HOẠCH của thửa — đọc sheets/_qh/<xã>/<tờ>.tra.json ──
+            // feature.nguon = "slug xã/số tờ", do parseGeoJsonText đóng dấu.
+            val qh by produceState<QhLookup.ThuaQh?>(null, feature.nguon, feature.soThua) {
+                val p = feature.nguon.split('/')
+                value = if (p.size == 2 && feature.soThua.isNotBlank())
+                    QhLookup.tra(ctx, p[0], p[1], feature.soThua,
+                        feature.dienTich.replace(',', '.').toDoubleOrNull() ?: 0.0)
+                else null
+            }
+            qh?.takeIf { it.coDuLieu }?.let { q ->
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        if (q.sdd.isNotEmpty()) {
+                            Text("Quy hoạch sử dụng đất (TT 08/2024)", fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold, color = Color(0xFF1B5E20))
+                            q.sdd.forEach {
+                                Text("• " + QhLookup.dong(it, q.sdd.size == 1), fontSize = 13.sp)
+                            }
+                        }
+                        if (q.xd.isNotEmpty()) {
+                            Text("Quy hoạch xây dựng (TT 16/2025)", fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold, color = Color(0xFF6E00DD))
+                            q.xd.forEach {
+                                Text("• " + QhLookup.dong(it, q.xd.size == 1), fontSize = 13.sp)
+                            }
+                        }
+                        Text("Tham khảo — không thay thế trích lục quy hoạch có dấu.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+
             HorizontalDivider()
 
             // ── Toạ độ VN-2000 ────────────────────────────────────

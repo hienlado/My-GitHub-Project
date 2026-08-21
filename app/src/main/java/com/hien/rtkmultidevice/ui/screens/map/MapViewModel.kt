@@ -109,7 +109,24 @@ class MapViewModel @Inject constructor(
     // ── "Tôi đang ở thửa nào?" (tra ngược điểm RTK -> xã/tờ/thửa) ──
     private val _whereResult = MutableStateFlow<CadastralCloudSource.WhereResult?>(null)
     val whereResult: StateFlow<CadastralCloudSource.WhereResult?> = _whereResult.asStateFlow()
-    fun clearWhereResult() { _whereResult.value = null }
+    fun clearWhereResult() { _whereResult.value = null; _qhResult.value = null }
+
+    // ── Quy hoạch của thửa vừa tra (QHSDD + QHXD, đọc từ sheets/_qh) ──
+    private val _qhResult = MutableStateFlow<QhLookup.ThuaQh?>(null)
+    val qhResult: StateFlow<QhLookup.ThuaQh?> = _qhResult.asStateFlow()
+
+    /** Ưu tiên slug thật trong WhereResult; dữ liệu cũ không có thì dò theo tên xã. */
+    private fun traQuyHoach(r: CadastralCloudSource.WhereResult?) {
+        _qhResult.value = null
+        if (r == null || !r.found || r.thua.isBlank()) return
+        val slug = if (r.commune.isNotBlank()) r.commune
+                   else (communeSlugFromName(r.xaName) ?: return)
+        viewModelScope.launch {
+            _qhResult.value = QhLookup.tra(
+                appContext, slug, r.to, r.thua,
+                r.dienTich.replace(',', '.').toDoubleOrNull() ?: 0.0)
+        }
+    }
 
     fun whereAmINow(lat: Double, lon: Double) {
         if ((lat == 0.0 && lon == 0.0) || lat.isNaN() || lon.isNaN()) {
@@ -126,6 +143,7 @@ class MapViewModel @Inject constructor(
                     CadastralLocalSource.whereAmIVn2000(appContext, vn.easting, vn.northing)
                 else CadastralCloudSource.whereAmI(vn.easting, vn.northing)
                 _whereResult.value = r
+                traQuyHoach(r)
                 openSheetOf(r)          // mở luôn tờ, khỏi thao tác thêm
             }
             _cloudLoading.value = false
@@ -174,6 +192,7 @@ class MapViewModel @Inject constructor(
             val r = if (_offlineMode.value) CadastralLocalSource.whereAmIVn2000(appContext, x, y)
                     else CadastralCloudSource.whereAmI(x, y)
             _whereResult.value = r
+            traQuyHoach(r)
             openSheetOf(r)
             _cloudLoading.value = false
         }

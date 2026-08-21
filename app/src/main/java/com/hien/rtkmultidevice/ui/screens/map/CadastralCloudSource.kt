@@ -137,7 +137,9 @@ object CadastralCloudSource {
         val thua: String = "",
         val dienTich: String = "",
         val tenChu: String = "",
-        val message: String = ""
+        val message: String = "",
+        /** slug thư mục xã, vd "xakimlong" — cần để mở _qh/<xã>/<tờ>.tra.json */
+        val commune: String = ""
     )
 
     /** Tra ngược: toạ độ VN-2000 (x=Easting, y=Northing) -> xã/tờ/thửa. */
@@ -153,7 +155,8 @@ object CadastralCloudSource {
             val o = org.json.JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
             if (o.optString("result") == "found")
                 WhereResult(true, o.optString("xaName"), o.optString("to"), o.optString("thua"),
-                    o.optString("dienTich"), o.optString("tenChu"))
+                    o.optString("dienTich"), o.optString("tenChu"),
+                    commune = o.optString("xa"))
             else
                 WhereResult(false, message = o.optString("message", "Ngoài phạm vi bản đồ"))
         } catch (e: Exception) {

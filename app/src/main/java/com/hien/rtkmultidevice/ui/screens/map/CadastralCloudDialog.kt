@@ -85,6 +85,7 @@ fun WhereAmIButton(
 ) {
     val loading by viewModel.cloudLoading.collectAsStateWithLifecycle()
     val result by viewModel.whereResult.collectAsStateWithLifecycle()
+    val qh by viewModel.qhResult.collectAsStateWithLifecycle()
 
     IconButton(onClick = { viewModel.whereAmINow(lat, lon) }, modifier = modifier, enabled = !loading) {
         Icon(Icons.Default.MyLocation, contentDescription = "Tôi đang ở thửa nào")
@@ -95,12 +96,20 @@ fun WhereAmIButton(
             onDismissRequest = { viewModel.clearWhereResult() },
             title = { Text(if (r.found) "Vị trí hiện tại" else "Không xác định") },
             text = {
-                if (r.found) Text(
-                    "${r.xaName}\n" +
-                    "Tờ ${r.to} — Thửa ${r.thua}\n" +
-                    "Diện tích: ${r.dienTich} m²\n" +
-                    "Chủ: ${r.tenChu}"
-                ) else Text(r.message)
+                if (r.found) {
+                    val sb = StringBuilder()
+                        .append(r.xaName).append('\n')
+                        .append("Tờ ${r.to} — Thửa ${r.thua}\n")
+                        .append("Diện tích: ${r.dienTich} m²\n")
+                        .append("Chủ: ${r.tenChu}")
+                    qh?.takeIf { it.coDuLieu }?.let { q ->
+                        sb.append("\n\n")
+                          .append(QhLookup.khoi("QH sử dụng đất (TT08/2024)", q.sdd))
+                          .append(QhLookup.khoi("QH xây dựng (TT16/2025)", q.xd))
+                          .append("Tham khảo — không thay thế trích lục có dấu.")
+                    }
+                    Text(sb.toString())
+                } else Text(r.message)
             },
             confirmButton = { TextButton(onClick = { viewModel.clearWhereResult() }) { Text("Đóng") } }
         )

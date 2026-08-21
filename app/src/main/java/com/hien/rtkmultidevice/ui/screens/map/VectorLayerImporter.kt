@@ -65,7 +65,9 @@ object VectorLayerImporter {
         val soThua          : String = "",
         val dienTich        : String = "",
         val loaiDat         : String = "",
-        val chuSuDung       : String = ""
+        val chuSuDung       : String = "",
+        /** "slug xã/số tờ" — biết thửa thuộc tờ nào để tra quy hoạch trong _qh/ */
+        val nguon           : String = ""
     ) {
         val centroid: GeoPoint? get() {
             if (geoPoints.isEmpty()) return null
@@ -561,7 +563,9 @@ object VectorLayerImporter {
             "Feature" -> root.optJSONObject("geometry")?.let { addGeometry(it, labelOf(root.optJSONObject("properties"))) }
             else -> if (root.has("coordinates")) addGeometry(root, "")
         }
-        return VectorLayer(name, features, layerCs, layerCm)
+        // Đóng dấu nguồn "slug/tờ" lên từng đối tượng — khi gộp nhiều tờ,
+        // VectorLayer.name thành "Nhiều tờ (...)" nên không tra ngược được nữa.
+        return VectorLayer(name, features.map { it.copy(nguon = name) }, layerCs, layerCm)
     }
 
     // ══════════════════════════════════════════════════════════

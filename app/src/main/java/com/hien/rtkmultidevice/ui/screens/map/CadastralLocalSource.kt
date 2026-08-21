@@ -168,7 +168,8 @@ object CadastralLocalSource {
                             to = box.to,
                             thua = f.soThua.ifBlank { f.label },
                             dienTich = f.dienTich,
-                            tenChu = f.chuSuDung
+                            tenChu = f.chuSuDung,
+                            commune = box.commune
                         )
                     }
                 }
