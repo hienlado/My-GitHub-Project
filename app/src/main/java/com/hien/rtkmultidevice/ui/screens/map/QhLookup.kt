@@ -125,6 +125,67 @@ object QhLookup {
         if (chiMotMuc && m.pc >= 99.0) "${m.ten} — ${soVN(m.m2)} m²"
         else "${m.ten} — ${soVN(m.m2)} m² (${m.pc.toInt()}%)"
 
+    // ── Tô MÀU thửa theo mã QHSDD chiếm ưu thế ──────────────────────────────
+    // KHÔNG vẽ hatch: hatch chỉ dùng khi xuất báo cáo (vẽ một lần, không có
+    // ngân sách khung hình). Trên bản đồ sống chỉ tô màu thuần từ style_qhsdd.json.
+    private var cacheMau: Map<String, Int>? = null
+    private var cacheMauKeys: Set<String>? = null
+
+    /** Đọc bảng màu TT08: mã loại đất -> màu ARGB. */
+    private fun bangMau(context: Context): Map<String, Int> {
+        val f = File(qhDir(context), "style_qhsdd.json")
+        if (!f.exists()) return emptyMap()
+        return try {
+            val o = JSONObject(f.readText()).optJSONObject("loai_dat") ?: return emptyMap()
+            val out = HashMap<String, Int>()
+            val it = o.keys()
+            while (it.hasNext()) {
+                val ma = it.next()
+                val rgb = o.optJSONObject(ma)?.optJSONArray("rgb") ?: continue
+                if (rgb.length() < 3) continue
+                out[ma] = android.graphics.Color.argb(
+                    110, rgb.optInt(0), rgb.optInt(1), rgb.optInt(2))
+            }
+            out
+        } catch (e: Throwable) { emptyMap() }
+    }
+
+    /**
+     * Bảng tra "xã/tờ|số thửa" -> màu ARGB, cho các tờ đang mở.
+     * @param keys tập "slug xã/số tờ" (chính là VectorFeature.nguon)
+     */
+    suspend fun mauTheoThua(context: Context, keys: Set<String>): Map<String, Int> =
+        withContext(Dispatchers.IO) {
+            if (keys.isEmpty()) return@withContext emptyMap()
+            cacheMau?.let { if (cacheMauKeys == keys) return@withContext it }
+            val mau = bangMau(context)
+            if (mau.isEmpty()) return@withContext emptyMap()
+            val out = HashMap<String, Int>()
+            for (k in keys) {
+                val p = k.split('/')
+                if (p.size != 2) continue
+                val f = File(qhDir(context), "${p[0]}/${p[1]}.tra.json")
+                if (!f.exists()) continue
+                try {
+                    val thua = JSONObject(f.readText()).optJSONObject("thua") ?: continue
+                    val it = thua.keys()
+                    while (it.hasNext()) {
+                        val st = it.next()
+                        // trùng số thửa -> mảng; lấy phần tử đầu (thửa lớn nhất thường đúng)
+                        val o = when (val v = thua.opt(st)) {
+                            is JSONObject -> v
+                            is JSONArray  -> v.optJSONObject(0)
+                            else -> null
+                        } ?: continue
+                        val ma = o.optJSONArray("sdd")?.optJSONObject(0)?.optString("ma") ?: continue
+                        mau[ma]?.let { c -> out["$k|$st"] = c }
+                    }
+                } catch (e: Throwable) { /* bỏ tờ lỗi, làm tiếp tờ khác */ }
+            }
+            cacheMau = out; cacheMauKeys = keys
+            out
+        }
+
     /** Gộp cả khối để hiện nhanh trong AlertDialog. */
     fun khoi(tieuDe: String, ds: List<Muc>): String {
         if (ds.isEmpty()) return ""

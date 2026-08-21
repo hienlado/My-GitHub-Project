@@ -104,6 +104,10 @@ fun MapScreen(
     }
     var showFrames by remember { mutableStateOf(false) }
     var showLabels by remember { mutableStateOf(true) }
+    // Thanh công cụ dọc phải: xếp vào để giải phóng màn hình (9 nút ~ 370dp).
+    var railOpen   by remember { mutableStateOf(true) }
+    // Lớp nền quy hoạch (màu TT08 + hatch TT16) — bộ vẽ chưa có, xem 03_VIEC_DANG_LAM.
+    var showQhLayer by remember { mutableStateOf(false) }
 
     // ── Trạng thái dialog căn chỉnh toạ độ ─────────────────────
     var showAlignDialog     by remember { mutableStateOf(false) }
@@ -129,6 +133,17 @@ fun MapScreen(
         }
     }
     val ctx = androidx.compose.ui.platform.LocalContext.current
+
+    // Bảng màu QHSDD theo thửa cho các tờ đang mở — đọc file ngoài luồng chính.
+    // Chỉ MÀU, không hatch: hatch để dành cho lúc xuất báo cáo.
+    val qhMau by produceState(emptyMap<String, Int>(), importedLayer, showQhLayer) {
+        value = if (!showQhLayer) emptyMap()
+        else QhLookup.mauTheoThua(
+            ctx,
+            importedLayer?.features?.map { it.nguon }?.filter { it.contains('/') }?.toSet()
+                ?: emptySet()
+        )
+    }
 
     // ── Chưa nối máy thu → dùng GPS điện thoại để bản đồ vẫn biết vị trí ──
     // Thiếu quyền vị trí thì lớp dự phòng im lặng bỏ qua, nên phải xin quyền trước.
@@ -315,6 +330,7 @@ fun MapScreen(
                 // Highlight đối tượng đang chọn (sheet đang mở) — cyan nét đậm
                 highlightFeatureId  = selectedVecFeature?.id,
                 showLabels          = showLabels,
+                qhMau               = qhMau,
                 cadRev              = cadRev,
                 focusPoint          = focusPoint,
                 sheetFrames         = if (showFrames) allFrames else emptyList(),
@@ -340,6 +356,15 @@ fun MapScreen(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                     modifier = Modifier.padding(vertical = 4.dp)
                 ) {
+                    // ── Tay nắm: chạm để XẾP VÀO / MỞ RA ──
+                    IconButton(onClick = { railOpen = !railOpen }, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            if (railOpen) Icons.Default.KeyboardArrowRight else Icons.Default.KeyboardArrowLeft,
+                            if (railOpen) "Xếp thanh công cụ" else "Mở thanh công cụ",
+                            tint = Color(0xFFFFC46B), modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    if (!railOpen) return@Column
                     CadastralCloudButton(viewModel, modifier = Modifier.size(40.dp))
                     WhereAmIButton(viewModel, gnss.latitude, gnss.longitude, modifier = Modifier.size(40.dp))
                     CoordLookupButton(viewModel, modifier = Modifier.size(40.dp))
@@ -360,6 +385,23 @@ fun MapScreen(
                             if (showFrames) Icons.Default.GridOff else Icons.Default.GridOn,
                             "Khung tờ tổng thể",
                             tint = if (showFrames) Color(0xFF80FF80) else Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    // Bật/tắt LỚP NỀN QUY HOẠCH (QHSDD màu + QHXD hatch)
+                    IconButton(onClick = {
+                        if (QhLookup.coDuLieu(ctx)) {
+                            showQhLayer = !showQhLayer
+                        } else {
+                            android.widget.Toast.makeText(ctx,
+                                "Chưa có dữ liệu quy hoạch trên máy — chép thư mục _qh vào cadastral/sheets/",
+                                android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            if (showQhLayer) Icons.Default.Layers else Icons.Default.LayersClear,
+                            "Tô màu quy hoạch sử dụng đất",
+                            tint = if (showQhLayer) Color(0xFF80FF80) else Color.White,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -423,22 +465,7 @@ fun MapScreen(
             }
 
             // ── Fix chip + coordinate toggle ──────────────────────
-            Column(
-                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Surface(
-                    color = Color(android.graphics.Color.parseColor(gnss.fixColorHex)),
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        "${gnss.fixLabel}  •  ${gnss.satelliteCount} vệ tinh",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold
-                    )
-                }
-                CoordinateToggleOverlay(gnss)
-            }
+            StatusOverlay(gnss, modifier = Modifier.align(Alignment.TopStart).padding(8.dp))
 
             // ── FAB "Đo điểm" ─────────────────────────────────────
             if (projectId > 0) {
@@ -556,6 +583,8 @@ private fun OsmMapView(
     highlightFeatureId : Int? = null,
     /** Bật/tắt nhãn hỗn số tại tâm thửa */
     showLabels         : Boolean = true,
+    /** "xã/tờ|số thửa" -> màu ARGB theo mã QHSDD. Rỗng = không tô màu quy hoạch. */
+    qhMau              : Map<String, Int> = emptyMap(),
     /** rev của CadDrawingHolder — đổi để buộc vẽ lại lớp CAD */
     cadRev             : Int = 0,
     /** Điểm cần căn giữa bản đồ (đi tới thửa) */
@@ -616,7 +645,8 @@ private fun OsmMapView(
                 }
                 updateMapOverlays(mapView, gnss, points, followGps, onScrolled, onMarkerTap)
                 updateSheetFrames(mapView, sheetFrames, onSheetTap)
-                updateVectorOverlay(mapView, vectorLayer, highlightFeatureId, showLabels, onVectorFeatureTap)
+                updateVectorOverlay(mapView, vectorLayer, highlightFeatureId, showLabels,
+                    qhMau, onVectorFeatureTap)
                 // Lớp VẼ CAD (độc lập) — gọi SAU updateVectorOverlay để tap-overlay CAD nằm trên cùng.
                 // (cadRev là param: đổi giá trị -> OsmMapView recompose -> update chạy lại -> vẽ lại CAD)
                 renderCadOverlay(mapView, CadastralCloudSource.CENTRAL_MERIDIAN)
@@ -859,11 +889,13 @@ private fun updateVectorOverlay(
     layer             : VectorLayerImporter.VectorLayer?,
     highlightFeatureId: Int?,
     showLabels        : Boolean,
+    /** "xã/tờ|số thửa" -> màu ARGB theo mã QHSDD. Rỗng = không tô. */
+    qhMau             : Map<String, Int>,
     onFeatureTap      : (VectorLayerImporter.VectorFeature, Int) -> Unit
 ) {
     // Cache check — chỉ vẽ lại khi layer HOẶC highlight HOẶC bật/tắt nhãn thay đổi
     // (identityHashCode: so sánh rẻ, không deep-compare hàng nghìn toạ độ)
-    val cacheKey = "vec_${System.identityHashCode(layer)}_${highlightFeatureId}_$showLabels"
+    val cacheKey = "vec_${System.identityHashCode(layer)}_${highlightFeatureId}_${showLabels}_${qhMau.size}"
     if (mapView.tag == cacheKey) return
     mapView.tag = cacheKey
 
@@ -871,6 +903,9 @@ private fun updateVectorOverlay(
     mapView.overlays.removeAll { it is Polyline && it.title == "vector" }
     mapView.overlays.removeAll { it is Marker  && it.title?.startsWith("vec_") == true }
     mapView.overlays.removeAll { it is org.osmdroid.views.overlay.MapEventsOverlay }
+    mapView.overlays.removeAll {
+        it is org.osmdroid.views.overlay.Polygon && it.title == "qh_mau"
+    }
 
     if (layer == null) { mapView.invalidate(); return }
 
@@ -892,6 +927,25 @@ private fun updateVectorOverlay(
 
     val strokeColor    = AndroidColor.argb(200, 255, 100, 0)   // cam đậm
     val highlightColor = AndroidColor.argb(255, 0, 229, 255)   // cyan nổi bật
+
+    // ── Nền TÔ MÀU theo QHSDD (dưới ranh thửa) ──
+    // Chỉ tô màu thuần, KHÔNG hatch — hatch để dành cho lúc xuất báo cáo.
+    if (qhMau.isNotEmpty()) {
+        layer.features.forEach { feature ->
+            if (feature.type != VectorLayerImporter.FeatureType.POLYGON) return@forEach
+            if (feature.geoPoints.size < 3) return@forEach
+            val mau = qhMau["${feature.nguon}|${feature.soThua}"] ?: return@forEach
+            mapView.overlays.add(org.osmdroid.views.overlay.Polygon(mapView).apply {
+                title      = "qh_mau"
+                infoWindow = null
+                points     = feature.geoPoints
+                fillPaint.color    = mau
+                outlinePaint.color = AndroidColor.TRANSPARENT
+                outlinePaint.strokeWidth = 0f
+                setOnClickListener { _, _, _ -> onFeatureTap(feature, 0); true }
+            })
+        }
+    }
 
     // Vẽ polylines / polygons — THEO TỪNG FEATURE để chạm trực tiếp vào đường.
     // infoWindow = null: tắt popup mặc định "vector" của osmdroid (gây khó hiểu).
@@ -1038,6 +1092,9 @@ private fun VectorFeatureSheet(
         Column(
             modifier            = Modifier
                 .fillMaxWidth()
+                // Bảng dài ra khi có thêm 2 khối quy hoạch -> PHẢI cuộn được,
+                // nếu không nội dung dưới (nút cắm mốc, biên bản...) bị đẩy khuất.
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1436,30 +1493,78 @@ internal fun CoordAlignDialog(
 }
 
 // ════════════════════════════════════════════════════════════
-// CoordinateToggleOverlay
+// StatusOverlay — chip Fix + toạ độ gộp 1 dòng, chạm để bụng ra
 // ════════════════════════════════════════════════════════════
 
 @Composable
-private fun CoordinateToggleOverlay(gnss: GnssStatus) {
-    var showWgs by remember { mutableStateOf(true) }
+private fun StatusOverlay(gnss: GnssStatus, modifier: Modifier = Modifier) {
+    // Gộp chip Fix + khối toạ độ vào MỘT dòng. Chạm để bụng ra xem đầy đủ.
+    // Trước đây 2 khối rời chiếm ~110dp chiều cao góc trái — che mất bản đồ.
+    var mo by remember { mutableStateOf(false) }
+    val mauFix = Color(android.graphics.Color.parseColor(gnss.fixColorHex))
+    val vn = gnss.vn2000
+
     Surface(
-        modifier = Modifier.clickable { showWgs = !showWgs },
+        modifier = modifier.clickable { mo = !mo },
         color    = Color.Black.copy(alpha = 0.62f),
         shape    = RoundedCornerShape(6.dp)
     ) {
-        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            if (showWgs) {
-                Text("WGS-84  ▼ VN-2000", color = Color(0xFF80DEEA), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                Text("φ %.7f°".format(gnss.latitude),  color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                Text("λ %.7f°".format(gnss.longitude), color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                Text("h %.2f m  •  %s".format(gnss.altitude, gnss.localTime), color = Color.White.copy(alpha = 0.75f), fontSize = 9.sp)
-            } else {
-                gnss.vn2000?.let { vn ->
-                    Text("VN-2000 ${vn.zoneName}  ▼ WGS-84", color = Color(0xFFFFCC80), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    Text("X  ${vn.northingFormatted}", color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                    Text("Y  ${vn.eastingFormatted}",  color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                    Text("h %.2f m  •  %s".format(gnss.altitude, gnss.localTime), color = Color.White.copy(alpha = 0.75f), fontSize = 9.sp)
-                } ?: Text("VN-2000: chờ GPS...", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            // ── Dòng luôn hiện ──
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = mauFix, shape = RoundedCornerShape(3.dp)) {
+                    Text(
+                        gnss.fixLabel,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                        color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(Modifier.width(5.dp))
+                Text("${gnss.satelliteCount}\u2605", color = Color.White, fontSize = 11.sp,
+                     fontFamily = FontFamily.Monospace)
+                if (!mo) {
+                    Spacer(Modifier.width(7.dp))
+                    if (vn != null) Text(
+                        "X ${vn.northingFormatted}  Y ${vn.eastingFormatted}",
+                        color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace
+                    ) else Text(
+                        "%.5f  %.5f".format(gnss.latitude, gnss.longitude),
+                        color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace
+                    )
+                }
+                Spacer(Modifier.width(5.dp))
+                Icon(
+                    if (mo) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    if (mo) "Thu gọn" else "Xem đầy đủ",
+                    tint = Color.White.copy(alpha = 0.55f), modifier = Modifier.size(13.dp)
+                )
+            }
+
+            // ── Phần bụng ra: cả VN-2000 lẫn WGS-84, khỏi phải chuyển qua lại ──
+            if (mo) {
+                Spacer(Modifier.height(3.dp))
+                if (vn != null) {
+                    Text("VN-2000 ${vn.zoneName}", color = Color(0xFFFFCC80),
+                         fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Text("X  ${vn.northingFormatted}", color = Color.White,
+                         fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                    Text("Y  ${vn.eastingFormatted}", color = Color.White,
+                         fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                } else {
+                    Text("VN-2000: chờ GPS...", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
+                }
+                Spacer(Modifier.height(2.dp))
+                Text("WGS-84", color = Color(0xFF80DEEA), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Text("\u03C6 %.7f\u00B0".format(gnss.latitude), color = Color.White,
+                     fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                Text("\u03BB %.7f\u00B0".format(gnss.longitude), color = Color.White,
+                     fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                Text("h %.2f m  \u2022  %d v\u1ec7 tinh  \u2022  %s".format(
+                        gnss.altitude, gnss.satelliteCount, gnss.localTime),
+                     color = Color.White.copy(alpha = 0.75f), fontSize = 9.sp)
             }
         }
     }
