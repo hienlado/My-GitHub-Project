@@ -733,8 +733,15 @@ private fun updateMapOverlays(
 ) {
     // Chỉ xoá GPS/survey overlays — không xoá vector overlays (tag bắt đầu bằng "vec_"
     // hoặc title="vector") và MapEventsOverlay (bắt tap vào giữa thửa)
+    //
+    // ⚠ HÀM NÀY CHẠY MỖI NHỊP GNSS (~1 Hz). Nhánh `else -> true` xoá SẠCH mọi loại
+    //   overlay không được liệt kê ở trên. Thêm loại overlay mới mà quên khai báo giữ
+    //   lại thì nó "nháy lên rồi tắt": vẽ được một lần, nhịp GNSS sau bị xoá, mà
+    //   updateVectorOverlay thì thoát sớm theo cacheKey nên không vẽ lại.
+    //   Polygon nền quy hoạch (title="qh_mau") đã dính đúng bẫy này.
     mapView.overlays.removeAll { overlay ->
         when (overlay) {
+            is org.osmdroid.views.overlay.Polygon          -> overlay.title != "qh_mau"
             is Polyline                                    -> overlay.title != "vector"
             is Marker                                      -> overlay.title?.startsWith("vec_") != true
             is org.osmdroid.views.overlay.MapEventsOverlay -> false
