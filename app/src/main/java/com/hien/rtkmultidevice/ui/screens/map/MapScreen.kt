@@ -106,8 +106,8 @@ fun MapScreen(
     var showLabels by remember { mutableStateOf(true) }
     // Thanh công cụ dọc phải: xếp vào để giải phóng màn hình (9 nút ~ 370dp).
     var railOpen   by remember { mutableStateOf(true) }
-    // Lớp nền quy hoạch (màu TT08 + hatch TT16) — bộ vẽ chưa có, xem 03_VIEC_DANG_LAM.
-    var showQhLayer by remember { mutableStateOf(false) }
+    // Lớp QHSDD: 0 tắt · 1 theo TỜ đang mở · 2 toàn XÃ
+    var qhCheDo by remember { mutableIntStateOf(QhLookup.TAT) }
 
     // ── Trạng thái dialog căn chỉnh toạ độ ─────────────────────
     var showAlignDialog     by remember { mutableStateOf(false) }
@@ -138,13 +138,12 @@ fun MapScreen(
     // Vẽ HÌNH HỌC THẬT của vùng QH, không phải tô màu từng thửa: 43,8 % số thửa vắt
     // qua nhiều vùng nên tô theo thửa thì đường đứt khúc, ranh răng cưa.
     // Chỉ MÀU, không hatch — hatch để dành cho lúc xuất báo cáo.
-    val qhVung by produceState(emptyList<QhLookup.Vung>(), importedLayer, showQhLayer) {
-        value = if (!showQhLayer) emptyList()
-        else QhLookup.vungQuyHoach(
+    val qhVung by produceState(emptyList<QhLookup.Vung>(), importedLayer, qhCheDo) {
+        value = QhLookup.vungQuyHoach(
             ctx,
             importedLayer?.features?.map { it.nguon }?.filter { it.contains('/') }?.toSet()
                 ?: emptySet(),
-            "SDD", CadastralCloudSource.CENTRAL_MERIDIAN
+            qhCheDo, "SDD", CadastralCloudSource.CENTRAL_MERIDIAN
         )
     }
 
@@ -392,19 +391,36 @@ fun MapScreen(
                         )
                     }
                     // Bật/tắt LỚP NỀN QUY HOẠCH (QHSDD màu + QHXD hatch)
+                    // Lớp QHSDD — chạm để xoay vòng: tắt -> theo TỜ -> toàn XÃ -> tắt
                     IconButton(onClick = {
-                        if (QhLookup.coDuLieu(ctx)) {
-                            showQhLayer = !showQhLayer
-                        } else {
+                        if (!QhLookup.coDuLieu(ctx)) {
                             android.widget.Toast.makeText(ctx,
                                 "Chưa có dữ liệu quy hoạch trên máy — chép thư mục _qh vào cadastral/sheets/",
                                 android.widget.Toast.LENGTH_LONG).show()
+                            return@IconButton
                         }
+                        val keys = importedLayer?.features?.map { it.nguon }
+                            ?.filter { it.contains('/') }?.toSet() ?: emptySet()
+                        qhCheDo = when (qhCheDo) {
+                            QhLookup.TAT -> QhLookup.THEO_TO
+                            QhLookup.THEO_TO ->
+                                if (QhLookup.coToanXa(ctx, keys)) QhLookup.TOAN_XA else QhLookup.TAT
+                            else -> QhLookup.TAT
+                        }
+                        android.widget.Toast.makeText(ctx, when (qhCheDo) {
+                            QhLookup.THEO_TO -> "QH sử dụng đất: các TỜ đang mở"
+                            QhLookup.TOAN_XA -> "QH sử dụng đất: TOÀN XÃ (nặng hơn)"
+                            else -> "Đã tắt lớp quy hoạch"
+                        }, android.widget.Toast.LENGTH_SHORT).show()
                     }, modifier = Modifier.size(40.dp)) {
                         Icon(
-                            if (showQhLayer) Icons.Default.Layers else Icons.Default.LayersClear,
-                            "Tô màu quy hoạch sử dụng đất",
-                            tint = if (showQhLayer) Color(0xFF80FF80) else Color.White,
+                            if (qhCheDo == QhLookup.TAT) Icons.Default.LayersClear else Icons.Default.Layers,
+                            "Lớp quy hoạch sử dụng đất",
+                            tint = when (qhCheDo) {
+                                QhLookup.THEO_TO -> Color(0xFF80FF80)   // xanh lá — theo tờ
+                                QhLookup.TOAN_XA -> Color(0xFFFFC46B)   // cam — toàn xã
+                                else -> Color.White
+                            },
                             modifier = Modifier.size(20.dp)
                         )
                     }

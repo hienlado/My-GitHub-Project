@@ -149,24 +149,38 @@ object QhLookup {
     private var cacheVung: List<Vung>? = null
     private var cacheVungKeys: Set<String>? = null
 
+    /** 0 = tắt · 1 = theo TỜ đang mở · 2 = toàn XÃ */
+    const val TAT = 0
+    const val THEO_TO = 1
+    const val TOAN_XA = 2
+
     /**
-     * Nạp vùng quy hoạch của các tờ đang mở.
+     * Nạp vùng quy hoạch.
      * @param keys tập "slug xã/số tờ" (= VectorFeature.nguon)
+     * @param cheDo THEO_TO: chỉ các tờ đang mở · TOAN_XA: cả xã, kể cả chỗ chưa mở tờ
      * @param lop  "SDD" (mặc định) hoặc "XD"
      * Toạ độ trong file là VN-2000 MÉT -> đổi sang WGS-84 để vẽ trên osmdroid.
      */
     suspend fun vungQuyHoach(
-        context: Context, keys: Set<String>, lop: String = "SDD", cm: Double = 107.75
+        context: Context, keys: Set<String>, cheDo: Int = THEO_TO,
+        lop: String = "SDD", cm: Double = 107.75
     ): List<Vung> = withContext(Dispatchers.IO) {
-        if (keys.isEmpty()) return@withContext emptyList()
-        val ck = keys + lop
+        if (keys.isEmpty() || cheDo == TAT) return@withContext emptyList()
+        // TOÀN XÃ: mỗi xã một file _xa.qh.geojson thay cho từng tờ
+        val nguon: List<Pair<String, File>> = if (cheDo == TOAN_XA)
+            keys.mapNotNull { it.split('/').getOrNull(0) }.distinct()
+                .map { xa -> xa to File(qhDir(context), "$xa/_xa.qh.geojson") }
+        else
+            keys.mapNotNull { k ->
+                val p = k.split('/')
+                if (p.size == 2) k to File(qhDir(context), "${p[0]}/${p[1]}.qh.geojson") else null
+            }
+
+        val ck = nguon.map { it.first }.toSet() + lop + "cd$cheDo"
         cacheVung?.let { if (cacheVungKeys == ck) return@withContext it }
         val bang = bangMau(context)
         val out = ArrayList<Vung>()
-        for (k in keys) {
-            val p = k.split('/')
-            if (p.size != 2) continue
-            val f = File(qhDir(context), "${p[0]}/${p[1]}.qh.geojson")
+        for ((_, f) in nguon) {
             if (!f.exists()) continue
             try {
                 val fc = JSONObject(f.readText()).optJSONArray("features") ?: continue
@@ -214,6 +228,11 @@ object QhLookup {
         cacheVung = out; cacheVungKeys = ck
         out
     }
+
+    /** Xã nào đã có file toàn xã (để nút biết có bật được chế độ đó không). */
+    fun coToanXa(context: Context, keys: Set<String>): Boolean =
+        keys.mapNotNull { it.split('/').getOrNull(0) }.distinct()
+            .any { File(qhDir(context), "$it/_xa.qh.geojson").exists() }
 
     // ── Tô MÀU thửa theo mã QHSDD chiếm ưu thế (CHỈ để dự phòng) ────────────
     // Giữ lại phòng khi thiếu file .qh.geojson. KHÔNG dùng làm mặc định.
