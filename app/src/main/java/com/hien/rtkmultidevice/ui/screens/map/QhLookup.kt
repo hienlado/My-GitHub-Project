@@ -125,7 +125,71 @@ object QhLookup {
         if (chiMotMuc && m.pc >= 99.0) "${m.ten} — ${soVN(m.m2)} m²"
         else "${m.ten} — ${soVN(m.m2)} m² (${m.pc.toInt()}%)"
 
-    // ── Tô MÀU thửa theo mã QHSDD chiếm ưu thế ──────────────────────────────
+    // ── VÙNG QUY HOẠCH THẬT (đọc <tờ>.qh.geojson) ──────────────────────────
+    // Đây mới là hình học đúng. Cách cũ (tô màu từng THỬA theo mã chiếm ưu thế)
+    // SAI với 43,8 % số thửa vì thửa vắt qua nhiều vùng quy hoạch: đường bị đứt
+    // khúc, ranh răng cưa bám theo ranh thửa, chỗ không có thửa thì trống.
+
+    /** Một vùng quy hoạch để vẽ nền. */
+    data class Vung(
+        val lop: String,              // "SDD" | "XD"
+        val ma: String,
+        val ten: String,
+        val mau: Int,                 // ARGB
+        val diem: List<org.osmdroid.util.GeoPoint>
+    )
+
+    private var cacheVung: List<Vung>? = null
+    private var cacheVungKeys: Set<String>? = null
+
+    /**
+     * Nạp vùng quy hoạch của các tờ đang mở.
+     * @param keys tập "slug xã/số tờ" (= VectorFeature.nguon)
+     * @param lop  "SDD" (mặc định) hoặc "XD"
+     * Toạ độ trong file là VN-2000 MÉT -> đổi sang WGS-84 để vẽ trên osmdroid.
+     */
+    suspend fun vungQuyHoach(
+        context: Context, keys: Set<String>, lop: String = "SDD", cm: Double = 107.75
+    ): List<Vung> = withContext(Dispatchers.IO) {
+        if (keys.isEmpty()) return@withContext emptyList()
+        val ck = keys + lop
+        cacheVung?.let { if (cacheVungKeys == ck) return@withContext it }
+        val bang = bangMau(context)
+        val out = ArrayList<Vung>()
+        for (k in keys) {
+            val p = k.split('/')
+            if (p.size != 2) continue
+            val f = File(qhDir(context), "${p[0]}/${p[1]}.qh.geojson")
+            if (!f.exists()) continue
+            try {
+                val fc = JSONObject(f.readText()).optJSONArray("features") ?: continue
+                for (i in 0 until fc.length()) {
+                    val ft = fc.optJSONObject(i) ?: continue
+                    val pr = ft.optJSONObject("properties") ?: continue
+                    if (pr.optString("lop") != lop) continue
+                    val ma = pr.optString("ma")
+                    val mau = bang[ma] ?: continue
+                    val ring = ft.optJSONObject("geometry")
+                        ?.optJSONArray("coordinates")?.optJSONArray(0) ?: continue
+                    val diem = ArrayList<org.osmdroid.util.GeoPoint>(ring.length())
+                    for (j in 0 until ring.length()) {
+                        val c = ring.optJSONArray(j) ?: continue
+                        // VN-2000 mét (x=Easting, y=Northing) -> WGS-84
+                        val gp = VectorLayerImporter.inverseVn2000(
+                            c.optDouble(1), c.optDouble(0), cm) ?: continue
+                        diem.add(gp)
+                    }
+                    if (diem.size >= 3)
+                        out.add(Vung(lop, ma, pr.optString("ten"), mau, diem))
+                }
+            } catch (e: Throwable) { /* bỏ tờ lỗi, làm tiếp tờ khác */ }
+        }
+        cacheVung = out; cacheVungKeys = ck
+        out
+    }
+
+    // ── Tô MÀU thửa theo mã QHSDD chiếm ưu thế (CHỈ để dự phòng) ────────────
+    // Giữ lại phòng khi thiếu file .qh.geojson. KHÔNG dùng làm mặc định.
     // KHÔNG vẽ hatch: hatch chỉ dùng khi xuất báo cáo (vẽ một lần, không có
     // ngân sách khung hình). Trên bản đồ sống chỉ tô màu thuần từ style_qhsdd.json.
     private var cacheMau: Map<String, Int>? = null

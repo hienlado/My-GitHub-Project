@@ -134,14 +134,17 @@ fun MapScreen(
     }
     val ctx = androidx.compose.ui.platform.LocalContext.current
 
-    // Bảng màu QHSDD theo thửa cho các tờ đang mở — đọc file ngoài luồng chính.
-    // Chỉ MÀU, không hatch: hatch để dành cho lúc xuất báo cáo.
-    val qhMau by produceState(emptyMap<String, Int>(), importedLayer, showQhLayer) {
-        value = if (!showQhLayer) emptyMap()
-        else QhLookup.mauTheoThua(
+    // VÙNG quy hoạch sử dụng đất của các tờ đang mở — đọc file ngoài luồng chính.
+    // Vẽ HÌNH HỌC THẬT của vùng QH, không phải tô màu từng thửa: 43,8 % số thửa vắt
+    // qua nhiều vùng nên tô theo thửa thì đường đứt khúc, ranh răng cưa.
+    // Chỉ MÀU, không hatch — hatch để dành cho lúc xuất báo cáo.
+    val qhVung by produceState(emptyList<QhLookup.Vung>(), importedLayer, showQhLayer) {
+        value = if (!showQhLayer) emptyList()
+        else QhLookup.vungQuyHoach(
             ctx,
             importedLayer?.features?.map { it.nguon }?.filter { it.contains('/') }?.toSet()
-                ?: emptySet()
+                ?: emptySet(),
+            "SDD", CadastralCloudSource.CENTRAL_MERIDIAN
         )
     }
 
@@ -330,7 +333,7 @@ fun MapScreen(
                 // Highlight đối tượng đang chọn (sheet đang mở) — cyan nét đậm
                 highlightFeatureId  = selectedVecFeature?.id,
                 showLabels          = showLabels,
-                qhMau               = qhMau,
+                qhVung              = qhVung,
                 cadRev              = cadRev,
                 focusPoint          = focusPoint,
                 sheetFrames         = if (showFrames) allFrames else emptyList(),
@@ -583,8 +586,8 @@ private fun OsmMapView(
     highlightFeatureId : Int? = null,
     /** Bật/tắt nhãn hỗn số tại tâm thửa */
     showLabels         : Boolean = true,
-    /** "xã/tờ|số thửa" -> màu ARGB theo mã QHSDD. Rỗng = không tô màu quy hoạch. */
-    qhMau              : Map<String, Int> = emptyMap(),
+    /** Vùng quy hoạch sử dụng đất để vẽ nền. Rỗng = không vẽ. */
+    qhVung             : List<QhLookup.Vung> = emptyList(),
     /** rev của CadDrawingHolder — đổi để buộc vẽ lại lớp CAD */
     cadRev             : Int = 0,
     /** Điểm cần căn giữa bản đồ (đi tới thửa) */
@@ -646,7 +649,7 @@ private fun OsmMapView(
                 updateMapOverlays(mapView, gnss, points, followGps, onScrolled, onMarkerTap)
                 updateSheetFrames(mapView, sheetFrames, onSheetTap)
                 updateVectorOverlay(mapView, vectorLayer, highlightFeatureId, showLabels,
-                    qhMau, onVectorFeatureTap)
+                    qhVung, onVectorFeatureTap)
                 // Lớp VẼ CAD (độc lập) — gọi SAU updateVectorOverlay để tap-overlay CAD nằm trên cùng.
                 // (cadRev là param: đổi giá trị -> OsmMapView recompose -> update chạy lại -> vẽ lại CAD)
                 renderCadOverlay(mapView, CadastralCloudSource.CENTRAL_MERIDIAN)
@@ -896,13 +899,13 @@ private fun updateVectorOverlay(
     layer             : VectorLayerImporter.VectorLayer?,
     highlightFeatureId: Int?,
     showLabels        : Boolean,
-    /** "xã/tờ|số thửa" -> màu ARGB theo mã QHSDD. Rỗng = không tô. */
-    qhMau             : Map<String, Int>,
+    /** Vùng quy hoạch sử dụng đất (hình học thật). Rỗng = không vẽ. */
+    qhVung            : List<QhLookup.Vung>,
     onFeatureTap      : (VectorLayerImporter.VectorFeature, Int) -> Unit
 ) {
     // Cache check — chỉ vẽ lại khi layer HOẶC highlight HOẶC bật/tắt nhãn thay đổi
     // (identityHashCode: so sánh rẻ, không deep-compare hàng nghìn toạ độ)
-    val cacheKey = "vec_${System.identityHashCode(layer)}_${highlightFeatureId}_${showLabels}_${qhMau.size}"
+    val cacheKey = "vec_${System.identityHashCode(layer)}_${highlightFeatureId}_${showLabels}_${qhVung.size}"
     if (mapView.tag == cacheKey) return
     mapView.tag = cacheKey
 
@@ -935,23 +938,19 @@ private fun updateVectorOverlay(
     val strokeColor    = AndroidColor.argb(200, 255, 100, 0)   // cam đậm
     val highlightColor = AndroidColor.argb(255, 0, 229, 255)   // cyan nổi bật
 
-    // ── Nền TÔ MÀU theo QHSDD (dưới ranh thửa) ──
-    // Chỉ tô màu thuần, KHÔNG hatch — hatch để dành cho lúc xuất báo cáo.
-    if (qhMau.isNotEmpty()) {
-        layer.features.forEach { feature ->
-            if (feature.type != VectorLayerImporter.FeatureType.POLYGON) return@forEach
-            if (feature.geoPoints.size < 3) return@forEach
-            val mau = qhMau["${feature.nguon}|${feature.soThua}"] ?: return@forEach
-            mapView.overlays.add(org.osmdroid.views.overlay.Polygon(mapView).apply {
-                title      = "qh_mau"
-                infoWindow = null
-                points     = feature.geoPoints
-                fillPaint.color    = mau
-                outlinePaint.color = AndroidColor.TRANSPARENT
-                outlinePaint.strokeWidth = 0f
-                setOnClickListener { _, _, _ -> onFeatureTap(feature, 0); true }
-            })
-        }
+    // ── Nền VÙNG QUY HOẠCH SỬ DỤNG ĐẤT (dưới ranh thửa) ──
+    // Hình học thật của vùng QH, KHÔNG hatch — hatch để dành cho lúc xuất báo cáo.
+    // setOnClickListener trả FALSE để tap rơi xuống lớp thửa bên dưới.
+    qhVung.forEach { v ->
+        mapView.overlays.add(org.osmdroid.views.overlay.Polygon(mapView).apply {
+            title      = "qh_mau"
+            infoWindow = null
+            points     = v.diem
+            fillPaint.color          = v.mau
+            outlinePaint.color       = AndroidColor.TRANSPARENT
+            outlinePaint.strokeWidth = 0f
+            setOnClickListener { _, _, _ -> false }
+        })
     }
 
     // Vẽ polylines / polygons — THEO TỪNG FEATURE để chạm trực tiếp vào đường.
