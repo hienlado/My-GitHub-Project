@@ -946,6 +946,7 @@ private fun updateVectorOverlay(
             title      = "qh_mau"
             infoWindow = null
             points     = v.diem
+            if (v.lo.isNotEmpty()) holes = v.lo    // ⚠ không set lỗ = vẽ đè lên vùng bên trong
             fillPaint.color          = v.mau
             outlinePaint.color       = AndroidColor.TRANSPARENT
             outlinePaint.strokeWidth = 0f

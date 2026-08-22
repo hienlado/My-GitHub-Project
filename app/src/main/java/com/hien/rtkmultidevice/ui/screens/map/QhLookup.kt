@@ -130,13 +130,20 @@ object QhLookup {
     // SAI với 43,8 % số thửa vì thửa vắt qua nhiều vùng quy hoạch: đường bị đứt
     // khúc, ranh răng cưa bám theo ranh thửa, chỗ không có thửa thì trống.
 
-    /** Một vùng quy hoạch để vẽ nền. */
+    /**
+     * Một vùng quy hoạch để vẽ nền.
+     * @param diem vòng NGOÀI
+     * @param lo   các vòng LỖ (GeoJSON: coordinates[1..]). ⚠ BỎ QUA LỖ LÀ VẼ SAI:
+     *             vùng giao thông DGT bao quanh khu dân cư có tới 12 lỗ, vẽ đặc thì
+     *             nó phủ đè lên các vùng ONT nằm trong lỗ.
+     */
     data class Vung(
         val lop: String,              // "SDD" | "XD"
         val ma: String,
         val ten: String,
         val mau: Int,                 // ARGB
-        val diem: List<org.osmdroid.util.GeoPoint>
+        val diem: List<org.osmdroid.util.GeoPoint>,
+        val lo: List<List<org.osmdroid.util.GeoPoint>> = emptyList()
     )
 
     private var cacheVung: List<Vung>? = null
@@ -169,20 +176,40 @@ object QhLookup {
                     if (pr.optString("lop") != lop) continue
                     val ma = pr.optString("ma")
                     val mau = bang[ma] ?: continue
-                    val ring = ft.optJSONObject("geometry")
-                        ?.optJSONArray("coordinates")?.optJSONArray(0) ?: continue
-                    val diem = ArrayList<org.osmdroid.util.GeoPoint>(ring.length())
-                    for (j in 0 until ring.length()) {
-                        val c = ring.optJSONArray(j) ?: continue
-                        // VN-2000 mét (x=Easting, y=Northing) -> WGS-84
-                        val gp = VectorLayerImporter.inverseVn2000(
-                            c.optDouble(1), c.optDouble(0), cm) ?: continue
-                        diem.add(gp)
+                    val rings = ft.optJSONObject("geometry")
+                        ?.optJSONArray("coordinates") ?: continue
+                    // ring 0 = vòng ngoài, ring 1.. = LỖ
+                    val vong = ArrayList<List<org.osmdroid.util.GeoPoint>>(rings.length())
+                    for (r in 0 until rings.length()) {
+                        val ring = rings.optJSONArray(r) ?: continue
+                        val diem = ArrayList<org.osmdroid.util.GeoPoint>(ring.length())
+                        for (j in 0 until ring.length()) {
+                            val c = ring.optJSONArray(j) ?: continue
+                            // VN-2000 mét (x=Easting, y=Northing) -> WGS-84
+                            val gp = VectorLayerImporter.inverseVn2000(
+                                c.optDouble(1), c.optDouble(0), cm) ?: continue
+                            diem.add(gp)
+                        }
+                        if (diem.size >= 3) vong.add(diem)
                     }
-                    if (diem.size >= 3)
-                        out.add(Vung(lop, ma, pr.optString("ten"), mau, diem))
+                    if (vong.isNotEmpty())
+                        out.add(Vung(lop, ma, pr.optString("ten"), mau,
+                                     vong[0], vong.drop(1)))
                 }
             } catch (e: Throwable) { /* bỏ tờ lỗi, làm tiếp tờ khác */ }
+        }
+        // Vẽ vùng TO trước, vùng NHỎ sau — thêm một lớp bảo hiểm cho những chỗ
+        // hai vùng chồng nhau thật (không phải quan hệ lỗ).
+        out.sortByDescending { v ->
+            var mn = Double.MAX_VALUE; var mx = -Double.MAX_VALUE
+            var mn2 = Double.MAX_VALUE; var mx2 = -Double.MAX_VALUE
+            for (p in v.diem) {
+                if (p.latitude < mn) mn = p.latitude
+                if (p.latitude > mx) mx = p.latitude
+                if (p.longitude < mn2) mn2 = p.longitude
+                if (p.longitude > mx2) mx2 = p.longitude
+            }
+            (mx - mn) * (mx2 - mn2)
         }
         cacheVung = out; cacheVungKeys = ck
         out
