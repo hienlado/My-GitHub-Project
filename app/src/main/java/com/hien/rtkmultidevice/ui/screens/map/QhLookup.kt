@@ -146,8 +146,9 @@ object QhLookup {
         val lo: List<List<org.osmdroid.util.GeoPoint>> = emptyList()
     )
 
-    private var cacheVung: List<Vung>? = null
-    private var cacheVungKeys: Set<String>? = null
+    // cache TÁCH THEO LỚP — bật cả 2 lớp cùng lúc thì không được đè cache của nhau
+    private val cacheVung = HashMap<String, List<Vung>>()
+    private val cacheVungKeys = HashMap<String, Set<String>>()
 
     /** 0 = tắt · 1 = theo TỜ đang mở · 2 = toàn XÃ */
     const val TAT = 0
@@ -177,8 +178,8 @@ object QhLookup {
             }
 
         val ck = nguon.map { it.first }.toSet() + lop + "cd$cheDo"
-        cacheVung?.let { if (cacheVungKeys == ck) return@withContext it }
-        val bang = bangMau(context)
+        cacheVung[lop]?.let { if (cacheVungKeys[lop] == ck) return@withContext it }
+        val bang = bangMau(context, lop)
         val out = ArrayList<Vung>()
         for ((_, f) in nguon) {
             if (!f.exists()) continue
@@ -225,7 +226,7 @@ object QhLookup {
             }
             (mx - mn) * (mx2 - mn2)
         }
-        cacheVung = out; cacheVungKeys = ck
+        cacheVung[lop] = out; cacheVungKeys[lop] = ck
         out
     }
 
@@ -241,9 +242,17 @@ object QhLookup {
     private var cacheMau: Map<String, Int>? = null
     private var cacheMauKeys: Set<String>? = null
 
-    /** Đọc bảng màu TT08: mã loại đất -> màu ARGB. */
-    private fun bangMau(context: Context): Map<String, Int> {
-        val f = File(qhDir(context), "style_qhsdd.json")
+    /**
+     * Bảng màu theo LỚP:
+     *   SDD -> style_qhsdd.json  (TT 08/2024) — tô nền đặc, alpha 110
+     *   XD  -> style_qhxd_v2.json (TT 16/2025) — Phụ lục I quy định KHÔNG tô nền,
+     *          nên chỉ tô rất nhạt (alpha 60) và vẽ viền đậm; nhờ vậy chồng lên
+     *          lớp SDD vẫn đọc được cả hai.
+     */
+    private fun bangMau(context: Context, lop: String): Map<String, Int> {
+        val ten = if (lop == "XD") "style_qhxd_v2.json" else "style_qhsdd.json"
+        val alpha = if (lop == "XD") 60 else 110
+        val f = File(qhDir(context), ten)
         if (!f.exists()) return emptyMap()
         return try {
             val o = JSONObject(f.readText()).optJSONObject("loai_dat") ?: return emptyMap()
@@ -254,11 +263,16 @@ object QhLookup {
                 val rgb = o.optJSONObject(ma)?.optJSONArray("rgb") ?: continue
                 if (rgb.length() < 3) continue
                 out[ma] = android.graphics.Color.argb(
-                    110, rgb.optInt(0), rgb.optInt(1), rgb.optInt(2))
+                    alpha, rgb.optInt(0), rgb.optInt(1), rgb.optInt(2))
             }
             out
         } catch (e: Throwable) { emptyMap() }
     }
+
+    /** Màu viền (đục hoàn toàn) — chỉ dùng cho lớp XD. */
+    fun mauVien(mau: Int): Int = android.graphics.Color.argb(
+        220, android.graphics.Color.red(mau),
+        android.graphics.Color.green(mau), android.graphics.Color.blue(mau))
 
     /**
      * Bảng tra "xã/tờ|số thửa" -> màu ARGB, cho các tờ đang mở.
@@ -268,7 +282,7 @@ object QhLookup {
         withContext(Dispatchers.IO) {
             if (keys.isEmpty()) return@withContext emptyMap()
             cacheMau?.let { if (cacheMauKeys == keys) return@withContext it }
-            val mau = bangMau(context)
+            val mau = bangMau(context, "SDD")
             if (mau.isEmpty()) return@withContext emptyMap()
             val out = HashMap<String, Int>()
             for (k in keys) {

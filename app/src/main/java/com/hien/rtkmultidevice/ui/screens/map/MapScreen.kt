@@ -106,8 +106,9 @@ fun MapScreen(
     var showLabels by remember { mutableStateOf(true) }
     // Thanh công cụ dọc phải: xếp vào để giải phóng màn hình (9 nút ~ 370dp).
     var railOpen   by remember { mutableStateOf(true) }
-    // Lớp QHSDD: 0 tắt · 1 theo TỜ đang mở · 2 toàn XÃ
-    var qhCheDo by remember { mutableIntStateOf(QhLookup.TAT) }
+    // Hai lớp quy hoạch, BẬT ĐỘC LẬP. Mỗi lớp: 0 tắt · 1 theo TỜ đang mở · 2 toàn XÃ
+    var qhCheDo   by remember { mutableIntStateOf(QhLookup.TAT) }   // QH sử dụng đất (TT08)
+    var qhxdCheDo by remember { mutableIntStateOf(QhLookup.TAT) }   // QH xây dựng   (TT16)
 
     // ── Trạng thái dialog căn chỉnh toạ độ ─────────────────────
     var showAlignDialog     by remember { mutableStateOf(false) }
@@ -138,13 +139,15 @@ fun MapScreen(
     // Vẽ HÌNH HỌC THẬT của vùng QH, không phải tô màu từng thửa: 43,8 % số thửa vắt
     // qua nhiều vùng nên tô theo thửa thì đường đứt khúc, ranh răng cưa.
     // Chỉ MÀU, không hatch — hatch để dành cho lúc xuất báo cáo.
+    val qhKeys = importedLayer?.features?.map { it.nguon }?.filter { it.contains('/') }?.toSet()
+        ?: emptySet()
     val qhVung by produceState(emptyList<QhLookup.Vung>(), importedLayer, qhCheDo) {
         value = QhLookup.vungQuyHoach(
-            ctx,
-            importedLayer?.features?.map { it.nguon }?.filter { it.contains('/') }?.toSet()
-                ?: emptySet(),
-            qhCheDo, "SDD", CadastralCloudSource.CENTRAL_MERIDIAN
-        )
+            ctx, qhKeys, qhCheDo, "SDD", CadastralCloudSource.CENTRAL_MERIDIAN)
+    }
+    val qhxdVung by produceState(emptyList<QhLookup.Vung>(), importedLayer, qhxdCheDo) {
+        value = QhLookup.vungQuyHoach(
+            ctx, qhKeys, qhxdCheDo, "XD", CadastralCloudSource.CENTRAL_MERIDIAN)
     }
 
     // ── Chưa nối máy thu → dùng GPS điện thoại để bản đồ vẫn biết vị trí ──
@@ -333,6 +336,7 @@ fun MapScreen(
                 highlightFeatureId  = selectedVecFeature?.id,
                 showLabels          = showLabels,
                 qhVung              = qhVung,
+                qhxdVung            = qhxdVung,
                 cadRev              = cadRev,
                 focusPoint          = focusPoint,
                 sheetFrames         = if (showFrames) allFrames else emptyList(),
@@ -391,39 +395,18 @@ fun MapScreen(
                         )
                     }
                     // Bật/tắt LỚP NỀN QUY HOẠCH (QHSDD màu + QHXD hatch)
-                    // Lớp QHSDD — chạm để xoay vòng: tắt -> theo TỜ -> toàn XÃ -> tắt
-                    IconButton(onClick = {
-                        if (!QhLookup.coDuLieu(ctx)) {
-                            android.widget.Toast.makeText(ctx,
-                                "Chưa có dữ liệu quy hoạch trên máy — chép thư mục _qh vào cadastral/sheets/",
-                                android.widget.Toast.LENGTH_LONG).show()
-                            return@IconButton
-                        }
-                        val keys = importedLayer?.features?.map { it.nguon }
-                            ?.filter { it.contains('/') }?.toSet() ?: emptySet()
-                        qhCheDo = when (qhCheDo) {
-                            QhLookup.TAT -> QhLookup.THEO_TO
-                            QhLookup.THEO_TO ->
-                                if (QhLookup.coToanXa(ctx, keys)) QhLookup.TOAN_XA else QhLookup.TAT
-                            else -> QhLookup.TAT
-                        }
-                        android.widget.Toast.makeText(ctx, when (qhCheDo) {
-                            QhLookup.THEO_TO -> "QH sử dụng đất: các TỜ đang mở"
-                            QhLookup.TOAN_XA -> "QH sử dụng đất: TOÀN XÃ (nặng hơn)"
-                            else -> "Đã tắt lớp quy hoạch"
-                        }, android.widget.Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.size(40.dp)) {
-                        Icon(
-                            if (qhCheDo == QhLookup.TAT) Icons.Default.LayersClear else Icons.Default.Layers,
-                            "Lớp quy hoạch sử dụng đất",
-                            tint = when (qhCheDo) {
-                                QhLookup.THEO_TO -> Color(0xFF80FF80)   // xanh lá — theo tờ
-                                QhLookup.TOAN_XA -> Color(0xFFFFC46B)   // cam — toàn xã
-                                else -> Color.White
-                            },
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    // ── Hai lớp quy hoạch, mỗi nút xoay vòng: tắt -> theo TỜ -> toàn XÃ ──
+                    // Bật độc lập nhau; bật cả hai thì XD (viền) nằm trên SDD (nền).
+                    QhLayerButton(
+                        ctx = ctx, cheDo = qhCheDo, keys = qhKeys,
+                        nhan = "QH sử dụng đất", mauBat = Color(0xFF80FF80),
+                        icon = Icons.Default.Layers, iconTat = Icons.Default.LayersClear,
+                        onDoi = { qhCheDo = it })
+                    QhLayerButton(
+                        ctx = ctx, cheDo = qhxdCheDo, keys = qhKeys,
+                        nhan = "QH xây dựng", mauBat = Color(0xFFB388FF),
+                        icon = Icons.Default.Domain, iconTat = Icons.Default.DomainDisabled,
+                        onDoi = { qhxdCheDo = it })
                     // Bật/tắt NHÃN thửa
                     IconButton(onClick = { showLabels = !showLabels }, modifier = Modifier.size(40.dp)) {
                         Icon(
@@ -602,8 +585,10 @@ private fun OsmMapView(
     highlightFeatureId : Int? = null,
     /** Bật/tắt nhãn hỗn số tại tâm thửa */
     showLabels         : Boolean = true,
-    /** Vùng quy hoạch sử dụng đất để vẽ nền. Rỗng = không vẽ. */
+    /** Vùng quy hoạch SỬ DỤNG ĐẤT (TT08) — tô nền. Rỗng = không vẽ. */
     qhVung             : List<QhLookup.Vung> = emptyList(),
+    /** Vùng quy hoạch XÂY DỰNG (TT16) — tô nhạt + viền, vẽ TRÊN lớp SDD. */
+    qhxdVung           : List<QhLookup.Vung> = emptyList(),
     /** rev của CadDrawingHolder — đổi để buộc vẽ lại lớp CAD */
     cadRev             : Int = 0,
     /** Điểm cần căn giữa bản đồ (đi tới thửa) */
@@ -665,7 +650,7 @@ private fun OsmMapView(
                 updateMapOverlays(mapView, gnss, points, followGps, onScrolled, onMarkerTap)
                 updateSheetFrames(mapView, sheetFrames, onSheetTap)
                 updateVectorOverlay(mapView, vectorLayer, highlightFeatureId, showLabels,
-                    qhVung, onVectorFeatureTap)
+                    qhVung, qhxdVung, onVectorFeatureTap)
                 // Lớp VẼ CAD (độc lập) — gọi SAU updateVectorOverlay để tap-overlay CAD nằm trên cùng.
                 // (cadRev là param: đổi giá trị -> OsmMapView recompose -> update chạy lại -> vẽ lại CAD)
                 renderCadOverlay(mapView, CadastralCloudSource.CENTRAL_MERIDIAN)
@@ -915,13 +900,15 @@ private fun updateVectorOverlay(
     layer             : VectorLayerImporter.VectorLayer?,
     highlightFeatureId: Int?,
     showLabels        : Boolean,
-    /** Vùng quy hoạch sử dụng đất (hình học thật). Rỗng = không vẽ. */
+    /** Vùng QH sử dụng đất (TT08) — tô nền. */
     qhVung            : List<QhLookup.Vung>,
+    /** Vùng QH xây dựng (TT16) — tô nhạt + viền, vẽ TRÊN lớp SDD. */
+    qhxdVung          : List<QhLookup.Vung>,
     onFeatureTap      : (VectorLayerImporter.VectorFeature, Int) -> Unit
 ) {
     // Cache check — chỉ vẽ lại khi layer HOẶC highlight HOẶC bật/tắt nhãn thay đổi
     // (identityHashCode: so sánh rẻ, không deep-compare hàng nghìn toạ độ)
-    val cacheKey = "vec_${System.identityHashCode(layer)}_${highlightFeatureId}_${showLabels}_${qhVung.size}"
+    val cacheKey = "vec_${System.identityHashCode(layer)}_${highlightFeatureId}_${showLabels}_${qhVung.size}_${qhxdVung.size}"
     if (mapView.tag == cacheKey) return
     mapView.tag = cacheKey
 
@@ -957,6 +944,7 @@ private fun updateVectorOverlay(
     // ── Nền VÙNG QUY HOẠCH SỬ DỤNG ĐẤT (dưới ranh thửa) ──
     // Hình học thật của vùng QH, KHÔNG hatch — hatch để dành cho lúc xuất báo cáo.
     // setOnClickListener trả FALSE để tap rơi xuống lớp thửa bên dưới.
+    // 1) QH SỬ DỤNG ĐẤT — tô nền đặc (TT08)
     qhVung.forEach { v ->
         mapView.overlays.add(org.osmdroid.views.overlay.Polygon(mapView).apply {
             title      = "qh_mau"
@@ -966,6 +954,21 @@ private fun updateVectorOverlay(
             fillPaint.color          = v.mau
             outlinePaint.color       = AndroidColor.TRANSPARENT
             outlinePaint.strokeWidth = 0f
+            setOnClickListener { _, _, _ -> false }
+        })
+    }
+    // 2) QH XÂY DỰNG — tô rất nhạt + VIỀN đậm, vẽ TRÊN lớp SDD.
+    //    Phụ lục I TT16 quy định không tô nền; giữ tinh thần đó nên chồng 2 lớp
+    //    vẫn đọc được cả hai. (Không vẽ hatch — hatch để dành cho xuất báo cáo.)
+    qhxdVung.forEach { v ->
+        mapView.overlays.add(org.osmdroid.views.overlay.Polygon(mapView).apply {
+            title      = "qh_mau"
+            infoWindow = null
+            points     = v.diem
+            if (v.lo.isNotEmpty()) holes = v.lo
+            fillPaint.color          = v.mau
+            outlinePaint.color       = QhLookup.mauVien(v.mau)
+            outlinePaint.strokeWidth = 2f
             setOnClickListener { _, _, _ -> false }
         })
     }
@@ -1513,6 +1516,56 @@ internal fun CoordAlignDialog(
             TextButton(onClick = onDismiss) { Text("Huỷ") }
         }
     )
+}
+
+// ════════════════════════════════════════════════════════════
+// QhLayerButton — một nút cho một lớp quy hoạch
+// Xoay vòng: tắt -> theo TỜ đang mở -> toàn XÃ -> tắt.
+// Xã nào chưa có file toàn xã thì bỏ qua nấc đó, không kẹt ở trạng thái trống.
+// ════════════════════════════════════════════════════════════
+
+@Composable
+private fun QhLayerButton(
+    ctx: android.content.Context,
+    cheDo: Int,
+    keys: Set<String>,
+    nhan: String,
+    mauBat: Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTat: androidx.compose.ui.graphics.vector.ImageVector,
+    onDoi: (Int) -> Unit
+) {
+    IconButton(onClick = {
+        if (!QhLookup.coDuLieu(ctx)) {
+            android.widget.Toast.makeText(ctx,
+                "Chưa có dữ liệu quy hoạch trên máy — chép thư mục _qh vào cadastral/sheets/",
+                android.widget.Toast.LENGTH_LONG).show()
+            return@IconButton
+        }
+        val moi = when (cheDo) {
+            QhLookup.TAT -> QhLookup.THEO_TO
+            QhLookup.THEO_TO ->
+                if (QhLookup.coToanXa(ctx, keys)) QhLookup.TOAN_XA else QhLookup.TAT
+            else -> QhLookup.TAT
+        }
+        onDoi(moi)
+        android.widget.Toast.makeText(ctx, when (moi) {
+            QhLookup.THEO_TO -> "$nhan: các TỜ đang mở"
+            QhLookup.TOAN_XA -> "$nhan: TOÀN XÃ"
+            else -> "Đã tắt $nhan"
+        }, android.widget.Toast.LENGTH_SHORT).show()
+    }, modifier = Modifier.size(40.dp)) {
+        Icon(
+            if (cheDo == QhLookup.TAT) iconTat else icon,
+            nhan,
+            tint = when (cheDo) {
+                QhLookup.THEO_TO -> mauBat
+                QhLookup.TOAN_XA -> Color(0xFFFFC46B)   // cam = toàn xã
+                else -> Color.White
+            },
+            modifier = Modifier.size(20.dp)
+        )
+    }
 }
 
 // ════════════════════════════════════════════════════════════
