@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hien.rtkmultidevice.BuildConfig
 import com.hien.rtkmultidevice.core.connection.ConnectionState
 import com.hien.rtkmultidevice.ui.screens.stakeout.StakeoutEntryFlags
 import kotlinx.coroutines.launch
@@ -289,7 +290,9 @@ private fun AppInfoDrawer(
                         shape = RoundedCornerShape(20.dp)
                     ) {
                         Text(
-                            "Phiên bản $verName  •  build $verCode",
+                            // build = i.yyMMdd — i lấy từ versionCode, ngày do
+                            // build.gradle.kts tự đóng dấu lúc biên dịch.
+                            "Phiên bản $verName  •  build $verCode.${BuildConfig.NGAY_BUILD}",
                             color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
                         )

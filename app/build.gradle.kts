@@ -1,3 +1,9 @@
+// PHẢI khai báo import ở đầu file .gradle.kts. Không viết thẳng
+// `java.time.LocalDate` trong thân script: `java` đã là thuộc tính của Gradle
+// (JavaPluginExtension) nên sẽ báo "Unresolved reference 'time'".
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)      // Kotlin compiler plugin cho Compose
@@ -13,9 +19,18 @@ android {
         applicationId         = "com.hien.rtkmultidevice"
         minSdk                = 29
         targetSdk             = 36
-        versionCode           = 1
+        // versionCode = SỐ BUILD (i). Tăng 1 mỗi lần build. Phải là số nguyên
+        // tăng dần, nếu không `adb install -r` sẽ báo VERSION_DOWNGRADE.
+        versionCode           = 2
         versionName           = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Ngày build tự đóng dấu, khỏi sửa tay -> ngăn đằng nào cũng đúng.
+        // Ngăn kéo bên hông hiện "Phiên bản 1.0 • build 2.260826" (i.yyMMdd).
+        buildConfigField(
+            "String", "NGAY_BUILD",
+            "\"${LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"))}\""
+        )
     }
 
     buildTypes {
@@ -35,6 +50,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true      // cần cho buildConfigField NGAY_BUILD ở trên
     }
 }
 
