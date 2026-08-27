@@ -150,11 +150,19 @@ object BienBanSketch {
         }
 
         // ── 5. Nhãn thửa chính — TRẢI theo hình thửa, tự co cỡ chữ ──
+        // Thứ tự theo mẫu địa chính, từ trên xuống:
+        //     Loại ruộng đất
+        //     Số hiệu thửa
+        //     ────────────      <- gạch ngang kiểu phân số
+        //     Diện tích
         val lines = listOfNotNull(
-            mainLabel.soThua.ifBlank { null },
             mainLabel.loaiDat.ifBlank { null },
+            mainLabel.soThua.ifBlank { null },
             mainLabel.dienTich.ifBlank { null }
         )
+        // Vị trí dòng cần kẻ gạch phân số = ngay TRƯỚC dòng diện tích
+        val iGach = if (mainLabel.soThua.isNotBlank() && mainLabel.dienTich.isNotBlank())
+            lines.indexOf(mainLabel.dienTich) else -1
         if (lines.isNotEmpty()) {
             // Bề rộng lòng thửa tại vị trí đặt nhãn (đo theo bao hình cho đơn giản)
             val wMain = (mainPts.maxOf { it.first } - mainPts.minOf { it.first })
@@ -177,6 +185,20 @@ object BienBanSketch {
                 val ly = cMain.second + (i - (lines.size - 1) / 2f) * lh
                 drawHaloText(canvas, t, cMain.first, ly, mainP)
                 taken += textRect(t, cMain.first, ly, mainP, padX = 2f, padY = 2f)
+                // Gạch ngang kiểu phân số giữa Số hiệu thửa và Diện tích
+                if (i == iGach) {
+                    val wGach = maxOf(mainP.measureText(lines[i]),
+                                      mainP.measureText(lines[maxOf(i - 1, 0)])) / 2f + 2f
+                    val yGach = ly - lh * 0.62f
+                    canvas.drawLine(cMain.first - wGach, yGach, cMain.first + wGach, yGach,
+                        Paint().apply {
+                            isAntiAlias = true; color = Color.WHITE; strokeWidth = 2.6f
+                        })
+                    canvas.drawLine(cMain.first - wGach, yGach, cMain.first + wGach, yGach,
+                        Paint().apply {
+                            isAntiAlias = true; color = Color.BLACK; strokeWidth = 1.0f
+                        })
+                }
             }
         }
 

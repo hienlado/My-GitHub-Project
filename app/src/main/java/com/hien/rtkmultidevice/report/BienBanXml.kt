@@ -120,9 +120,15 @@ object BienBanXml {
         "DonViDoDac", "HeToaDo", "BangKeMocGioi"
     )
 
-    fun load(file: File): BienBan? = runCatching {
+    fun load(file: File): BienBan? = loadText(file.readText(Charsets.UTF_8))
+
+    /**
+     * Đọc XML từ CHUỖI. Cần bản này vì file người dùng sửa nằm trong Downloads,
+     * lấy về qua MediaStore (ReportStorage.readText) chứ không phải java.io.File.
+     */
+    fun loadText(xml: String): BienBan? = runCatching {
         val p = Xml.newPullParser()
-        p.setInput(file.inputStream(), "UTF-8")
+        p.setInput(java.io.StringReader(xml))
 
         val map  = HashMap<String, String>()
         val mocs = ArrayList<BienBan.MocGioi>()

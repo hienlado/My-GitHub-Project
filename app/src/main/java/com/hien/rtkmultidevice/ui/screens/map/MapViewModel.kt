@@ -307,6 +307,9 @@ class MapViewModel @Inject constructor(
             thang = cal.get(java.util.Calendar.MONTH) + 1,
             nam = cal.get(java.util.Calendar.YEAR),
             soThua = feature.soThua.ifBlank { feature.label },
+            // Số tờ nằm sẵn trong `nguon` = "slug xã/số tờ" — trước đây bỏ trống
+            // rồi bắt người dùng gõ tay, trong khi dữ liệu đã có.
+            soTo = feature.nguon.substringAfter('/', "").trim(),
             dienTich = feature.dienTich, loaiDat = feature.loaiDat,
             chuSuDung = feature.chuSuDung,
             donViTen = rpt.donViTen, donViDaiDien = rpt.donViDaiDien,
@@ -394,6 +397,34 @@ class MapViewModel @Inject constructor(
     }
 
     /**
+     * Vùng quy hoạch quanh thửa, đổi về VN-2000 (N, E) cho trang sơ đồ biên bản.
+     *
+     * `QhLookup` trả GeoPoint WGS-84 vì nó phục vụ osmdroid; biên bản lại vẽ theo
+     * mét như bảng kê mốc giới, nên phải chiếu ngược. Dùng chế độ THEO_TO có nạp
+     * tờ kề bên (`loadAdjacentSheets` đã gọi trước khi mở form) nên thửa giáp
+     * biên / giáp tờ vẫn đủ vùng quy hoạch xung quanh.
+     */
+    private suspend fun qhVungChoBienBan(
+        keys: Set<String>, lop: String, cm: Double
+    ): List<com.hien.rtkmultidevice.report.BienBanQh.Vung> {
+        if (keys.isEmpty()) return emptyList()
+        val cheDo = if (com.hien.rtkmultidevice.ui.screens.map.QhLookup.coToanXa(appContext, keys))
+            QhLookup.TOAN_XA else QhLookup.THEO_TO
+        fun ve(ds: List<org.osmdroid.util.GeoPoint>) = ds.mapNotNull {
+            VectorLayerImporter.wgs84ToVn2000(it.latitude, it.longitude, cm)
+        }
+        return QhLookup.vungQuyHoach(appContext, keys, cheDo, lop, cm).mapNotNull { v ->
+            val ngoai = ve(v.diem)
+            if (ngoai.size < 3) null
+            else com.hien.rtkmultidevice.report.BienBanQh.Vung(
+                ma = v.ma, ten = v.ten, mau = v.mau,
+                ngoai = ngoai,
+                lo = v.lo.map { ve(it) }.filter { it.size >= 3 }
+            )
+        }
+    }
+
+    /**
      * Xuất BIÊN BẢN từ nội dung người dùng đã nhập trong form.
      *
      * Ghi nhớ luôn thông tin ĐƠN VỊ ĐO ĐẠC để lần sau tự điền —
@@ -431,17 +462,37 @@ class MapViewModel @Inject constructor(
                     )
                     _reportFile.value = "Đã lưu Tải xuống/$base.xml"
                 } else {
+                    // ── Ưu tiên XML NGƯỜI DÙNG ĐÃ SỬA ───────────────────────
+                    // Quy trình là: xuất XML -> sửa tay -> xuất PDF. Trước đây
+                    // PDF luôn dựng từ `bb` trong form nên mọi sửa đổi trong XML
+                    // bị bỏ qua. `BienBanXml.load` và `ReportStorage.readText`
+                    // vốn đã viết sẵn cho việc này nhưng chưa chỗ nào gọi.
+                    val xmlCu = ReportStorage.readText(appContext, "$base.xml")
+                    val tuXml = xmlCu?.let { BienBanXml.loadText(it) }
+                    val data  = tuXml ?: bb
+
                     val nbs = neighboursOf(feature)
+                    val cm  = feature.centralMeridian.takeIf { it != 0.0 } ?: 107.75
+                    val keys = setOfNotNull(feature.nguon.takeIf { it.isNotBlank() })
+                    val sdd = qhVungChoBienBan(keys, "SDD", cm)
+                    val xd  = qhVungChoBienBan(keys, "XD", cm)
+
                     val pdfTmp = java.io.File(appContext.cacheDir, "$base.pdf")
-                    BienBanPdf.export(pdfTmp, bb) { canvas, frame ->
-                        BienBanSketch.draw(
-                            canvas, frame, verts,
-                            BienBanSketch.ParcelLabel(bb.soThua, bb.dienTich, bb.loaiDat),
-                            nbs, zoom, centerN, centerE
-                        )
-                    }
+                    BienBanPdf.export(
+                        pdfTmp, data,
+                        sketch = { canvas, frame ->
+                            BienBanSketch.draw(
+                                canvas, frame, verts,
+                                BienBanSketch.ParcelLabel(data.soThua, data.dienTich, data.loaiDat),
+                                nbs, zoom, centerN, centerE
+                            )
+                        },
+                        qhSdd = sdd, qhXd = xd, qhVerts = verts
+                    )
                     ReportStorage.save(appContext, "$base.pdf", pdfTmp.readBytes(), "application/pdf")
-                    _reportFile.value = "Đã lưu Tải xuống/$base.pdf"
+                    _reportFile.value =
+                        if (tuXml != null) "Đã lưu Tải xuống/$base.pdf (theo $base.xml đã sửa)"
+                        else "Đã lưu Tải xuống/$base.pdf (theo nội dung trong form)"
                 }
             }.onFailure { _reportFile.value = "Lỗi xuất biên bản: ${it.message}" }
         }

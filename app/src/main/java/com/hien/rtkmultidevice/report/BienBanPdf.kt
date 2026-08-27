@@ -31,15 +31,81 @@ object BienBanPdf {
     fun export(
         outFile : File,
         b       : BienBan,
-        sketch  : ((Canvas, RectF) -> Unit)? = null
+        sketch  : ((Canvas, RectF) -> Unit)? = null,
+        /** Vùng QHSDD / QHXD quanh thửa + đỉnh thửa (N,E). null = không in trang QH. */
+        qhSdd   : List<BienBanQh.Vung>? = null,
+        qhXd    : List<BienBanQh.Vung>? = null,
+        qhVerts : List<Pair<Double, Double>> = emptyList()
     ): File {
         val doc = PdfDocument()
         drawPage1(doc, b)
         drawPage2(doc, b, sketch)
+        if (qhVerts.isNotEmpty() && (!qhSdd.isNullOrEmpty() || !qhXd.isNullOrEmpty()))
+            drawPageQh(doc, b, qhSdd.orEmpty(), qhXd.orEmpty(), qhVerts)
         outFile.parentFile?.mkdirs()
         outFile.outputStream().use { doc.writeTo(it) }
         doc.close()
         return outFile
+    }
+
+
+    // ══════════════════════════════════════════════════════════
+    // TRANG SƠ ĐỒ QUY HOẠCH — 2 khung + chú dẫn
+    // ══════════════════════════════════════════════════════════
+    private fun drawPageQh(
+        doc  : PdfDocument,
+        b    : BienBan,
+        sdd  : List<BienBanQh.Vung>,
+        xd   : List<BienBanQh.Vung>,
+        verts: List<Pair<Double, Double>>
+    ) {
+        val page = doc.startPage(
+            PdfDocument.PageInfo.Builder(PAGE_W, PAGE_H, doc.pages.size + 1).create())
+        val c  = page.canvas
+        val cx = PAGE_W / 2f
+        var y  = MARGIN + 10f
+
+        c.drawText("SƠ ĐỒ QUY HOẠCH KHU ĐẤT", cx, y,
+            paint(13f, bold = true, align = Paint.Align.CENTER))
+        y += 16f
+        val dc = listOf(b.xa, b.huyen, b.tinh).map { it.trim() }.filter { it.isNotEmpty() }
+        val soTo = if (b.soTo.isBlank()) "" else ", tờ bản đồ số ${b.soTo}"
+        c.drawText("Thửa số ${b.soThua}$soTo" + (if (dc.isEmpty()) "" else ", " + dc.joinToString(", ")),
+            cx, y, paint(9f, italic = true, align = Paint.Align.CENTER))
+        y += 20f
+
+        val w   = PAGE_W - MARGIN * 2
+        val hSk = 250f
+
+
+        // ── Khung 1: QUY HOẠCH SỬ DỤNG ĐẤT ──
+        c.drawText("QUY HOẠCH SỬ DỤNG ĐẤT (TT 08/2024/TT-BTNMT)", MARGIN, y,
+            paint(9.5f, bold = true))
+        y += 6f
+        val f1 = RectF(MARGIN, y, MARGIN + w, y + hSk)
+        val cd1 = BienBanQh.veKhung(c, f1, sdd, verts, vienDam = false)
+        y = f1.bottom + 12f
+        c.drawText("Chú dẫn ký hiệu nền tô:", MARGIN, y, paint(8f, bold = true))
+        y += 9f
+        y = BienBanQh.veChuDan(c, MARGIN, y, w, cd1) + 14f
+
+        // ── Khung 2: QUY HOẠCH XÂY DỰNG ──
+        c.drawText("QUY HOẠCH XÂY DỰNG (TT 16/2025/TT-BXD, Phụ lục I Mục 07)", MARGIN, y,
+            paint(9.5f, bold = true))
+        y += 6f
+        val f2 = RectF(MARGIN, y, MARGIN + w, y + hSk)
+        val cd2 = BienBanQh.veKhung(c, f2, xd, verts, vienDam = true)
+        y = f2.bottom + 12f
+        c.drawText("Chú dẫn ký hiệu nền tô:", MARGIN, y, paint(8f, bold = true))
+        y += 9f
+        y = BienBanQh.veChuDan(c, MARGIN, y, w, cd2) + 12f
+
+        c.drawText(
+            "Ghi chú: ranh thửa đất lập biên bản được kẻ viền đậm ở chính giữa mỗi khung. " +
+            "Sơ đồ chỉ có giá trị tham khảo, không thay thế trích lục quy hoạch của cơ quan nhà nước.",
+            MARGIN, y, paint(7.5f, italic = true))
+
+        doc.finishPage(page)
     }
 
     // Bề rộng cột bảng toạ độ (pt). Cột "Đỉnh thửa" đủ rộng cho tiêu đề,
@@ -75,8 +141,13 @@ object BienBanPdf {
         y += 30f
 
         // Đoạn mở đầu
+        // Địa chỉ ghép từ các phần KHÔNG RỖNG. Trước đây nối cứng nên xoá <Tinh>
+        // trong XML vẫn còn dấu phẩy và tên tỉnh mặc định — không cách nào bỏ.
+        val diaChiThua = listOf(b.xa, b.huyen, b.tinh)
+            .map { it.trim() }.filter { it.isNotEmpty() }.joinToString(", ")
+        val soToText = if (b.soTo.isBlank()) "" else " tờ bản đồ địa chính số ${b.soTo}"
         val doan = "Hôm nay, ngày ${b.ngay} tháng ${b.thang} năm ${b.nam} tại khu đất thuộc thửa đất số " +
-            "${b.soThua} tờ bản đồ địa chính số ${b.soTo} ${b.xa}, ${b.huyen}, ${b.tinh}, " +
+            "${b.soThua}$soToText" + (if (diaChiThua.isEmpty()) ", " else " $diaChiThua, ") +
             "đã được ${b.donViTen} thực hiện cắm mốc giới xác định ranh giới thửa đất (khu đất). " +
             "Đơn vị đo đạc tiến hành bàn giao ${b.soMocText} mốc ranh cho chủ sử dụng đất là ${b.chuSuDung}."
         y = wrap(c, doan, MARGIN, y, PAGE_W - MARGIN * 2, body, 16f) + 10f
