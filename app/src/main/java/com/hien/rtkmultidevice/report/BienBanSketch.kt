@@ -102,7 +102,9 @@ object BienBanSketch {
         })
         canvas.drawPath(mainPath, Paint().apply {
             isAntiAlias = true; style = Paint.Style.STROKE
-            strokeWidth = 1.1f                        // đã tô nền → nét mảnh
+            // CÙNG lực nét với thửa giáp (0.7f): thửa chính đã tô xám nên tự nổi,
+            // kẻ đậm hơn nữa làm hình nặng và lệch tông so với các thửa xung quanh.
+            strokeWidth = 0.7f
             color = Color.BLACK
         })
 
@@ -189,7 +191,11 @@ object BienBanSketch {
                 if (i == iGach) {
                     val wGach = maxOf(mainP.measureText(lines[i]),
                                       mainP.measureText(lines[maxOf(i - 1, 0)])) / 2f + 2f
-                    val yGach = ly - lh * 0.62f
+                    // Gạch nằm CHÍNH GIỮA khoảng hở giữa hai dòng chữ, tính theo
+                    // MÉP CHỮ chứ không theo đường cơ sở: mép dưới dòng trên ở
+                    // ly-lh+0.20*ts (chân chữ), mép trên dòng dưới ở ly-0.72*ts.
+                    // Lấy 0.62*lh như trước làm gạch tụt xuống sát dòng diện tích.
+                    val yGach = ly - (lh + 0.52f * ts) / 2f
                     canvas.drawLine(cMain.first - wGach, yGach, cMain.first + wGach, yGach,
                         Paint().apply {
                             isAntiAlias = true; color = Color.WHITE; strokeWidth = 2.6f

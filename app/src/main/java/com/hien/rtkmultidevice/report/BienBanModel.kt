@@ -21,9 +21,15 @@ data class BienBan(
     // ── Thửa đất ────────────────────────────────────────────
     val soThua      : String = "",
     val soTo        : String = "",
+    /** Đơn vị hành chính HIỆN HÀNH. Từ 2025 cả nước bỏ cấp huyện,
+     *  chỉ còn XÃ/PHƯỜNG và TỈNH/THÀNH PHỐ. */
     val xa          : String = "",
+    val tinh        : String = "",
+    /** Địa chỉ hành chính CŨ, ghi trong ngoặc để đối chiếu hồ sơ trước sáp nhập.
+     *  Ví dụ: "xã Kim Long, huyện Châu Đức, tỉnh Bà Rịa - Vũng Tàu". */
+    val diaChiCu    : String = "",
+    /** @deprecated Cấp huyện đã bỏ. Giữ để đọc lại XML cũ, không in ra biên bản. */
     val huyen       : String = "",
-    val tinh        : String = "Bà Rịa - Vũng Tàu",
     val dienTich    : String = "",
     val loaiDat     : String = "",
 

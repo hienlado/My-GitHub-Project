@@ -6,6 +6,8 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import kotlin.math.max
+import kotlin.math.min
 import java.io.File
 
 /**
@@ -35,13 +37,15 @@ object BienBanPdf {
         /** Vùng QHSDD / QHXD quanh thửa + đỉnh thửa (N,E). null = không in trang QH. */
         qhSdd   : List<BienBanQh.Vung>? = null,
         qhXd    : List<BienBanQh.Vung>? = null,
-        qhVerts : List<Pair<Double, Double>> = emptyList()
+        qhVerts : List<Pair<Double, Double>> = emptyList(),
+        /** Bảng mẫu tô TT16 đọc từ `_qh/style_qhxd_v2.json`. */
+        qhHoaVan: Map<String, BienBanQh.HoaVan> = emptyMap()
     ): File {
         val doc = PdfDocument()
         drawPage1(doc, b)
         drawPage2(doc, b, sketch)
         if (qhVerts.isNotEmpty() && (!qhSdd.isNullOrEmpty() || !qhXd.isNullOrEmpty()))
-            drawPageQh(doc, b, qhSdd.orEmpty(), qhXd.orEmpty(), qhVerts)
+            drawPageQh(doc, b, qhSdd.orEmpty(), qhXd.orEmpty(), qhVerts, qhHoaVan)
         outFile.parentFile?.mkdirs()
         outFile.outputStream().use { doc.writeTo(it) }
         doc.close()
@@ -52,57 +56,81 @@ object BienBanPdf {
     // ══════════════════════════════════════════════════════════
     // TRANG SƠ ĐỒ QUY HOẠCH — 2 khung + chú dẫn
     // ══════════════════════════════════════════════════════════
+    /** "xã …, tỉnh …" + " (trước đây: …)" nếu có địa chỉ cũ. Bỏ phần rỗng. */
+    internal fun diaChi(b: BienBan): String {
+        val nay = listOf(b.xa, b.tinh).map { it.trim() }.filter { it.isNotEmpty() }
+            .joinToString(", ")
+        val cu = b.diaChiCu.trim()
+        return when {
+            nay.isEmpty() && cu.isEmpty() -> ""
+            nay.isEmpty() -> cu
+            cu.isEmpty()  -> nay
+            else          -> "$nay (trước đây: $cu)"
+        }
+    }
+
     private fun drawPageQh(
         doc  : PdfDocument,
         b    : BienBan,
         sdd  : List<BienBanQh.Vung>,
         xd   : List<BienBanQh.Vung>,
-        verts: List<Pair<Double, Double>>
+        verts: List<Pair<Double, Double>>,
+        hoaVan: Map<String, BienBanQh.HoaVan>
     ) {
         val page = doc.startPage(
             PdfDocument.PageInfo.Builder(PAGE_W, PAGE_H, doc.pages.size + 1).create())
         val c  = page.canvas
         val cx = PAGE_W / 2f
-        var y  = MARGIN + 10f
+        val w  = PAGE_W - MARGIN * 2
+
+        // ── Đo trước rồi mới đặt, để LỀ TRÊN = LỀ DƯỚI ──────────────────────
+        // Chú dẫn dài ngắn tuỳ số mã có trong khung, đặt cứng từ trên xuống thì
+        // trang lúc hụt lúc tràn. Đo chiều cao thật rồi chia đều khoảng trống.
+        val hTieuDe = 16f + 20f                 // tên trang + dòng địa chỉ
+        val hNhan   = 6f                         // nhãn từng khung
+        val hSk     = 236f                       // khung bản đồ
+        val hCd1    = BienBanQh.soDong(sdd.map { it.ma }.distinct().size) * BienBanQh.CAO_DONG
+        val hCd2    = BienBanQh.soDong(xd.map { it.ma }.distinct().size) * BienBanQh.CAO_DONG
+        val hGhiChu = 22f
+        val hTong   = hTieuDe + (hNhan + hSk + 12f + 9f) * 2 + hCd1 + hCd2 + 14f + hGhiChu
+        val duLeft  = (PAGE_H - hTong) / 2f
+        var y = max(MARGIN, min(duLeft, MARGIN + 40f)) + 10f
 
         c.drawText("SƠ ĐỒ QUY HOẠCH KHU ĐẤT", cx, y,
             paint(13f, bold = true, align = Paint.Align.CENTER))
         y += 16f
-        val dc = listOf(b.xa, b.huyen, b.tinh).map { it.trim() }.filter { it.isNotEmpty() }
+        val dc = diaChi(b)
         val soTo = if (b.soTo.isBlank()) "" else ", tờ bản đồ số ${b.soTo}"
-        c.drawText("Thửa số ${b.soThua}$soTo" + (if (dc.isEmpty()) "" else ", " + dc.joinToString(", ")),
+        c.drawText("Thửa số ${b.soThua}$soTo" + (if (dc.isEmpty()) "" else ", $dc"),
             cx, y, paint(9f, italic = true, align = Paint.Align.CENTER))
         y += 20f
 
-        val w   = PAGE_W - MARGIN * 2
-        val hSk = 250f
-
-
-        // ── Khung 1: QUY HOẠCH SỬ DỤNG ĐẤT ──
+        // ── Khung 1: QUY HOẠCH SỬ DỤNG ĐẤT — tô nền đặc ──
         c.drawText("QUY HOẠCH SỬ DỤNG ĐẤT (TT 08/2024/TT-BTNMT)", MARGIN, y,
             paint(9.5f, bold = true))
-        y += 6f
+        y += hNhan
         val f1 = RectF(MARGIN, y, MARGIN + w, y + hSk)
-        val cd1 = BienBanQh.veKhung(c, f1, sdd, verts, vienDam = false)
+        val cd1 = BienBanQh.veKhung(c, f1, sdd, verts, moTo = true)
         y = f1.bottom + 12f
         c.drawText("Chú dẫn ký hiệu nền tô:", MARGIN, y, paint(8f, bold = true))
         y += 9f
-        y = BienBanQh.veChuDan(c, MARGIN, y, w, cd1) + 14f
+        y = BienBanQh.veChuDan(c, MARGIN, y, w, cd1, moTo = true) + 14f
 
-        // ── Khung 2: QUY HOẠCH XÂY DỰNG ──
+        // ── Khung 2: QUY HOẠCH XÂY DỰNG — mẫu tô TT16, không tô nền ──
         c.drawText("QUY HOẠCH XÂY DỰNG (TT 16/2025/TT-BXD, Phụ lục I Mục 07)", MARGIN, y,
             paint(9.5f, bold = true))
-        y += 6f
+        y += hNhan
         val f2 = RectF(MARGIN, y, MARGIN + w, y + hSk)
-        val cd2 = BienBanQh.veKhung(c, f2, xd, verts, vienDam = true)
+        val cd2 = BienBanQh.veKhung(c, f2, xd, verts, hoaVan = hoaVan, moTo = false)
         y = f2.bottom + 12f
         c.drawText("Chú dẫn ký hiệu nền tô:", MARGIN, y, paint(8f, bold = true))
         y += 9f
-        y = BienBanQh.veChuDan(c, MARGIN, y, w, cd2) + 12f
+        y = BienBanQh.veChuDan(c, MARGIN, y, w, cd2, hoaVan = hoaVan, moTo = false) + 14f
 
         c.drawText(
-            "Ghi chú: ranh thửa đất lập biên bản được kẻ viền đậm ở chính giữa mỗi khung. " +
-            "Sơ đồ chỉ có giá trị tham khảo, không thay thế trích lục quy hoạch của cơ quan nhà nước.",
+            "Ghi chú: ranh thửa đất lập biên bản kẻ viền đậm ở chính giữa mỗi khung. " +
+            "Chú dẫn chỉ liệt kê loại đất CÓ MẶT trong khung. Sơ đồ có giá trị tham khảo, " +
+            "không thay thế trích lục quy hoạch của cơ quan nhà nước.",
             MARGIN, y, paint(7.5f, italic = true))
 
         doc.finishPage(page)
@@ -143,8 +171,8 @@ object BienBanPdf {
         // Đoạn mở đầu
         // Địa chỉ ghép từ các phần KHÔNG RỖNG. Trước đây nối cứng nên xoá <Tinh>
         // trong XML vẫn còn dấu phẩy và tên tỉnh mặc định — không cách nào bỏ.
-        val diaChiThua = listOf(b.xa, b.huyen, b.tinh)
-            .map { it.trim() }.filter { it.isNotEmpty() }.joinToString(", ")
+        // Từ 2025 bỏ cấp huyện: chỉ XÃ + TỈNH, địa chỉ cũ ghi trong ngoặc.
+        val diaChiThua = diaChi(b)
         val soToText = if (b.soTo.isBlank()) "" else " tờ bản đồ địa chính số ${b.soTo}"
         val doan = "Hôm nay, ngày ${b.ngay} tháng ${b.thang} năm ${b.nam} tại khu đất thuộc thửa đất số " +
             "${b.soThua}$soToText" + (if (diaChiThua.isEmpty()) ", " else " $diaChiThua, ") +

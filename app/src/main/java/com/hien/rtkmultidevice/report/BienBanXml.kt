@@ -49,9 +49,11 @@ object BienBanXml {
         tagGroup(s, "ThuaDat") {
             text(s, "SoThua", b.soThua)
             text(s, "SoTo", b.soTo)
+            // Từ 2025 bỏ cấp huyện: chỉ ghi Xa + Tinh. DiaChiCu để trong ngoặc
+            // trên biên bản, phục vụ đối chiếu hồ sơ lập trước sáp nhập.
             text(s, "Xa", b.xa)
-            text(s, "Huyen", b.huyen)
             text(s, "Tinh", b.tinh)
+            text(s, "DiaChiCu", b.diaChiCu)
             text(s, "DienTich", b.dienTich)
             text(s, "LoaiDat", b.loaiDat)
         }
@@ -174,7 +176,9 @@ object BienBanXml {
             thang = g("ThoiGian/Thang").toIntOrNull() ?: 1,
             nam   = g("ThoiGian/Nam").toIntOrNull() ?: 2026,
             soThua = g("ThuaDat/SoThua"), soTo = g("ThuaDat/SoTo"),
-            xa = g("ThuaDat/Xa"), huyen = g("ThuaDat/Huyen"), tinh = g("ThuaDat/Tinh"),
+            xa = g("ThuaDat/Xa"), tinh = g("ThuaDat/Tinh"),
+            diaChiCu = g("ThuaDat/DiaChiCu"),
+            huyen = g("ThuaDat/Huyen"),          // XML cũ còn thẻ này thì vẫn đọc
             dienTich = g("ThuaDat/DienTich"), loaiDat = g("ThuaDat/LoaiDat"),
             chuSuDung = g("ChuSuDung/HoTen"), xungHo = g("ChuSuDung/XungHo").ifBlank { "ông" },
             diaChiChu = g("ChuSuDung/DiaChi"),

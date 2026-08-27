@@ -476,6 +476,9 @@ class MapViewModel @Inject constructor(
                     val keys = setOfNotNull(feature.nguon.takeIf { it.isNotBlank() })
                     val sdd = qhVungChoBienBan(keys, "SDD", cm)
                     val xd  = qhVungChoBienBan(keys, "XD", cm)
+                    // Mẫu tô TT16 để in đúng Phụ lục I Mục 07 lên giấy
+                    val hoaVan = com.hien.rtkmultidevice.report.BienBanQh.napHoaVan(
+                        java.io.File(QhLookup.qhDir(appContext), "style_qhxd_v2.json"))
 
                     val pdfTmp = java.io.File(appContext.cacheDir, "$base.pdf")
                     BienBanPdf.export(
@@ -487,7 +490,7 @@ class MapViewModel @Inject constructor(
                                 nbs, zoom, centerN, centerE
                             )
                         },
-                        qhSdd = sdd, qhXd = xd, qhVerts = verts
+                        qhSdd = sdd, qhXd = xd, qhVerts = verts, qhHoaVan = hoaVan
                     )
                     ReportStorage.save(appContext, "$base.pdf", pdfTmp.readBytes(), "application/pdf")
                     _reportFile.value =
