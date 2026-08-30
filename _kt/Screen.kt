@@ -58,16 +58,9 @@ sealed class Screen(val route: String) {
         }"
     }
 
-    /**
-     * Màn hình bản đồ OSM (Phase 7).
-     *
-     * `tuViTriRtk` = mở bản đồ TẠI vị trí máy thu. Chỉ lối vào nào đặt cờ này
-     * mới được tự kéo bản đồ về vị trí RTK; mọi lối vào khác giữ nguyên khung
-     * nhìn người dùng để lại lần trước.
-     */
-    data object Map : Screen("map/{projectId}?tuViTriRtk={tuViTriRtk}") {
-        fun createRoute(projectId: Int, tuViTriRtk: Boolean = false) =
-            "map/$projectId?tuViTriRtk=$tuViTriRtk"
+    /** Màn hình bản đồ OSM (Phase 7) */
+    data object Map : Screen("map/{projectId}") {
+        fun createRoute(projectId: Int) = "map/$projectId"
     }
 
     /** Màn hình chính 4 tab (Phase 9) */

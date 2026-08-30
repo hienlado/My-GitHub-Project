@@ -528,10 +528,7 @@ class MapViewModel @Inject constructor(
     val selectedPoint: StateFlow<SurveyPoint?> = _selectedPoint.asStateFlow()
 
     // ── Follow GPS (bản đồ tự di chuyển theo vị trí) ─────────
-    // MẶC ĐỊNH TẮT. Trước đây để true nên mỗi nhịp GNSS (~1 Hz) bản đồ lại bị
-    // kéo về vị trí máy thu — người đo vừa rê tới thửa cần xem thì bị giật về.
-    // Nay chỉ bật khi lối vào đặt cờ `tuViTriRtk`, hoặc user tự bấm nút Follow.
-    private val _followGps = MutableStateFlow(false)
+    private val _followGps = MutableStateFlow(true)
     val followGps: StateFlow<Boolean> = _followGps.asStateFlow()
 
     // ── Form đo điểm (FAB "Đo điểm") ─────────────────────────

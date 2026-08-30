@@ -175,17 +175,11 @@ fun AppNavGraph(navController: NavHostController) {
         // ── Màn hình 8: Bản đồ OSM (Phase 7) ─────────────
         composable(
             route     = Screen.Map.route,
-            arguments = listOf(
-                navArgument("projectId")  { type = NavType.IntType },
-                // Mặc định FALSE: mở bản đồ thì giữ nguyên khung nhìn cũ,
-                // không tự kéo về vị trí máy thu.
-                navArgument("tuViTriRtk") { type = NavType.BoolType; defaultValue = false }
-            )
+            arguments = listOf(navArgument("projectId") { type = NavType.IntType })
         ) { backStackEntry ->
             val pId = backStackEntry.arguments?.getInt("projectId") ?: -1
             MapScreen(
                 projectId           = pId,
-                tuViTriRtk          = backStackEntry.arguments?.getBoolean("tuViTriRtk") ?: false,
                 onNavigateBack      = { navController.popBackStack() },
                 onNavigateStakeout  = { _, _, _ ->
                     // Target đã được đặt vào StakeoutTargetHolder (MapViewModel.prepareStakeout)

@@ -32,7 +32,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hien.rtkmultidevice.BuildConfig
@@ -155,31 +154,13 @@ fun MainScreen(
                     Triple("Khảo sát",Icons.Outlined.EditLocation,  Icons.Filled.EditLocation),
                     Triple("Công cụ", Icons.Outlined.Construction,  Icons.Filled.Construction)
                 ).forEachIndexed { index, (label, iconOff, iconOn) ->
-                    // Icon che mất text do HAI thứ cộng lại, sửa một cái không hết:
-                    //  1. Icon để mặc định 24.dp, cộng ô nền chỉ báo cao 32.dp thì
-                    //     tràn xuống dòng nhãn.
-                    //  2. Nhãn không ghim maxLines: máy để cỡ chữ hệ thống lớn thì
-                    //     "Khảo sát"/"Thiết bị" xuống hai dòng rồi bị cắt.
                     NavigationBarItem(
                         selected = selectedTab == index,
                         onClick  = { selectedTab = index },
-                        alwaysShowLabel = true,
                         icon = {
-                            Icon(
-                                if (selectedTab == index) iconOn else iconOff,
-                                contentDescription = label,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Icon(if (selectedTab == index) iconOn else iconOff, label)
                         },
-                        label = {
-                            Text(
-                                label,
-                                fontSize = 11.sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Visible
-                            )
-                        }
+                        label = { Text(label, fontSize = 10.sp) }
                     )
                 }
             }

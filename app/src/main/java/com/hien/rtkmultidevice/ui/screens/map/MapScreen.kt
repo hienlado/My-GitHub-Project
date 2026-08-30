@@ -62,10 +62,20 @@ import org.osmdroid.views.overlay.Polyline
 @Composable
 fun MapScreen(
     projectId           : Int = -1,
+    /**
+     * Mở bản đồ TẠI vị trí máy thu. Chỉ khi cờ này bật thì bản đồ mới tự kéo
+     * về vị trí RTK; mặc định false — giữ nguyên khung nhìn lần trước.
+     */
+    tuViTriRtk          : Boolean = false,
     onNavigateBack      : () -> Unit,
     onNavigateStakeout  : ((n: Double, e: Double, name: String) -> Unit)? = null,
     viewModel           : MapViewModel = hiltViewModel()
 ) {
+    // Chỉ lối vào "mở bản đồ tại vị trí RTK" mới được tự kéo bản đồ về máy thu.
+    // LaunchedEffect(Unit): chạy đúng một lần khi vào màn hình, không lặp lại
+    // theo nhịp GNSS — nếu sau đó user rê bản đồ đi thì tôn trọng, không kéo lại.
+    LaunchedEffect(Unit) { if (tuViTriRtk) viewModel.enableFollowGps() }
+
     val gnss          by viewModel.gnssStatus.collectAsStateWithLifecycle()
     val project       by viewModel.project.collectAsStateWithLifecycle()
     val savedPoints   by viewModel.savedPoints.collectAsStateWithLifecycle()
@@ -102,8 +112,12 @@ fun MapScreen(
             savedPoints.filter { it.northing != 0.0 || it.easting != 0.0 }
                 .map { com.hien.rtkmultidevice.core.cad.CadVertex(it.northing, it.easting) }
     }
+    // Tham chiếu MapView, để 3 nút điều hướng trong thanh công cụ điều khiển được.
+    var mapRef by remember { mutableStateOf<MapView?>(null) }
     var showFrames by remember { mutableStateOf(false) }
-    var showLabels by remember { mutableStateOf(true) }
+    // Nhãn hỗn số tại tâm thửa: MẶC ĐỊNH TẮT. Bật sẵn thì lúc mở tờ bản đồ dày
+    // thửa, hàng trăm nhãn vẽ đè lên nhau che mất nền quy hoạch.
+    var showLabels by remember { mutableStateOf(false) }
     // Thanh công cụ dọc phải: xếp vào để giải phóng màn hình (9 nút ~ 370dp).
     var railOpen   by remember { mutableStateOf(true) }
     // Hai lớp quy hoạch, BẬT ĐỘC LẬP. Mỗi lớp: 0 tắt · 1 theo TỜ đang mở · 2 toàn XÃ
@@ -343,6 +357,8 @@ fun MapScreen(
                 onSheetTap          = { commune, to -> viewModel.loadCadastralSheet(commune, to) },
                 onScrolled          = viewModel::onMapScrolled,
                 onMarkerTap         = { viewModel.selectPoint(it) },
+                onMapReady          = { mapRef = it },
+                hienNutDieuHuong    = false,   // đã gộp vào thanh công cụ dọc phải
                 onVectorFeatureTap  = { feature, vidx ->
                     selectedVecFeature   = feature
                     selectedVecVertexIdx = vidx
@@ -350,9 +366,17 @@ fun MapScreen(
             )
 
             // ── Thanh công cụ DỌC cạnh PHẢI (MapToolRail) ─────────────
-            // TopEnd + top=52dp: nằm dưới badge lớp thửa, KHÔNG chạm nút zoom (BottomEnd).
+            //
+            // BottomEnd, sát cạnh dưới: trước đây neo TopEnd nên nó chiếm nguyên
+            // dải phải từ trên xuống, còn 3 nút zoom lại nằm riêng ở góc dưới —
+            // hai cụm nút, hai chỗ, cùng ăn màn hình. Nay gộp làm một cụm ở góc
+            // dưới phải, vừa tầm ngón cái khi cầm máy đo.
+            //
+            // ⚠ Mở hết ra là ~13 nút × 40dp ≈ 520dp, cao hơn màn hình 6 inch.
+            //   Neo ở cạnh dưới thì phần thừa tràn LÊN TRÊN và mất luôn tay nắm.
+            //   Nên phải chặn chiều cao và cho cuộn.
             Surface(
-                modifier = Modifier.align(Alignment.TopEnd).padding(top = 52.dp, end = 6.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 8.dp, end = 6.dp),
                 color = Color(0xCC1E272E),
                 contentColor = Color.White,
                 shape = RoundedCornerShape(22.dp)
@@ -360,17 +384,54 @@ fun MapScreen(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(2.dp),
-                    modifier = Modifier.padding(vertical = 4.dp)
+                    modifier = Modifier
+                        .padding(vertical = 4.dp)
+                        .heightIn(max = 460.dp)
+                        .verticalScroll(rememberScrollState())
                 ) {
                     // ── Tay nắm: chạm để XẾP VÀO / MỞ RA ──
                     IconButton(onClick = { railOpen = !railOpen }, modifier = Modifier.size(40.dp)) {
                         Icon(
-                            if (railOpen) Icons.Default.KeyboardArrowRight else Icons.Default.KeyboardArrowLeft,
+                            if (railOpen) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
                             if (railOpen) "Xếp thanh công cụ" else "Mở thanh công cụ",
                             tint = Color(0xFFFFC46B), modifier = Modifier.size(22.dp)
                         )
                     }
+
+                    // ── 3 NÚT ĐIỀU HƯỚNG — LUÔN HIỆN, kể cả khi xếp thanh vào ──
+                    // Đặt ngay dưới tay nắm chứ không đặt cuối: xếp/mở thanh thì
+                    // chúng KHÔNG đổi chỗ, ngón tay quen vị trí nào bấm vị trí đó.
+                    // ⚠ `importedLayer` khai báo bằng `by collectAsState...` nên là
+                    //   DELEGATED PROPERTY — Kotlin KHÔNG smart-cast được, viết
+                    //   `if (importedLayer != null) { fit(..., importedLayer) }` là
+                    //   lỗi biên dịch "type mismatch: VectorLayer? / VectorLayer".
+                    //   Phải hứng ra biến thường trước.
+                    val layerDeFit = importedLayer
+                    if (layerDeFit != null) {
+                        IconButton(
+                            onClick = { fitToVectorLayerMap(mapRef, layerDeFit) },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(Icons.Default.CenterFocusStrong, "Vừa khung lớp thửa",
+                                 tint = Color(0xFFFFC46B), modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    IconButton(onClick = { mapRef?.controller?.zoomIn() },
+                               modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Add, "Phóng to",
+                             tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+                    IconButton(onClick = { mapRef?.controller?.zoomOut() },
+                               modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Remove, "Thu nhỏ",
+                             tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+
                     if (!railOpen) return@Column
+                    HorizontalDivider(
+                        modifier = Modifier.width(24.dp).padding(vertical = 2.dp),
+                        color = Color.White.copy(alpha = 0.25f)
+                    )
                     CadastralCloudButton(viewModel, modifier = Modifier.size(40.dp))
                     WhereAmIButton(viewModel, gnss.latitude, gnss.longitude, modifier = Modifier.size(40.dp))
                     CoordLookupButton(viewModel, modifier = Modifier.size(40.dp))
@@ -595,6 +656,14 @@ private fun OsmMapView(
     focusPoint         : GeoPoint? = null,
     onScrolled         : () -> Unit,
     onMarkerTap        : (SurveyPoint) -> Unit,
+    /**
+     * Đưa MapView ra ngoài để MÀN HÌNH CHA điều khiển (phóng to/thu nhỏ/fit).
+     * Cần vì 3 nút điều hướng nay nằm trong thanh công cụ của MapScreen, không
+     * còn nằm trong composable này nữa.
+     */
+    onMapReady         : (MapView) -> Unit = {},
+    /** Cụm nút zoom NỘI BỘ. MapScreen tắt đi vì đã gộp vào thanh công cụ. */
+    hienNutDieuHuong   : Boolean = true,
     onVectorFeatureTap : (VectorLayerImporter.VectorFeature, Int) -> Unit = { _, _ -> },
     /** Khung tờ tổng thể (overlay) + chạm khung để tải tờ */
     sheetFrames        : List<CadastralCloudSource.SheetBox> = emptyList(),
@@ -634,10 +703,50 @@ private fun OsmMapView(
                 MapView(context).apply {
                     setTileSource(tileSource.toOsmdroidSource())
                     setMultiTouchControls(true)
-                    // Center mặc định = giữa Việt Nam — tránh mở map ở (0,0) giữa biển
-                    controller.setZoom(6.0)
-                    controller.setCenter(GeoPoint(16.0, 107.5))
+
+                    // KHÔI PHỤC KHUNG NHÌN LẦN TRƯỚC.
+                    //
+                    // Trước đây màn hình này luôn mở ở zoom 6 (mức quốc gia) rồi để
+                    // followGps giật về vị trí máy thu ngay nhịp GNSS đầu tiên. Nay
+                    // đã tắt followGps thì phải có chỗ dựa khác, nếu không mở bản đồ
+                    // ra chỉ thấy cả nước Việt Nam.
+                    //
+                    // MapCameraState là bộ nhớ DÙNG CHUNG với màn Đo điểm và Cắm mốc,
+                    // nên rời màn hình này rồi quay lại vẫn đúng chỗ đang làm việc.
+                    val luu = MapCameraState.lastCenter
+                    if (luu != null) {
+                        controller.setZoom(MapCameraState.lastZoom)
+                        controller.setCenter(luu)
+                    } else {
+                        // Chưa từng làm việc trên bản đồ: giữa Việt Nam,
+                        // tránh mở ở (0,0) giữa biển.
+                        controller.setZoom(6.0)
+                        controller.setCenter(GeoPoint(16.0, 107.5))
+                    }
+
+                    // Ghi nhớ khung nhìn mỗi khi user rê / phóng, và báo cho
+                    // ViewModel tắt bám GPS.
+                    //
+                    // ⚠ Trước đây `onScrolled` được truyền vào `updateMapOverlays`
+                    //   nhưng KHÔNG hàm nào gọi nó — tức kéo bản đồ không hề tắt được
+                    //   chế độ bám GPS. Nay gắn đúng vào MapListener của osmdroid.
+                    addMapListener(object : org.osmdroid.events.MapListener {
+                        override fun onScroll(e: org.osmdroid.events.ScrollEvent?): Boolean {
+                            onScrolled()
+                            mapCenter?.let {
+                                MapCameraState.save(zoomLevelDouble, it.latitude, it.longitude)
+                            }
+                            return false
+                        }
+                        override fun onZoom(e: org.osmdroid.events.ZoomEvent?): Boolean {
+                            mapCenter?.let {
+                                MapCameraState.save(zoomLevelDouble, it.latitude, it.longitude)
+                            }
+                            return false
+                        }
+                    })
                     mapViewRef.value = this
+                    onMapReady(this)
                 }
             },
             update = { mapView ->
@@ -659,7 +768,9 @@ private fun OsmMapView(
         )
 
         // ── Zoom controls ──────────────────────────────────────
-        Column(
+        // MapScreen đặt hienNutDieuHuong=false: 3 nút này đã dời vào thanh công
+        // cụ dọc phải. Các màn hình khác dùng OsmMapView vẫn giữ nguyên.
+        if (hienNutDieuHuong) Column(
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 90.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             horizontalAlignment = Alignment.End

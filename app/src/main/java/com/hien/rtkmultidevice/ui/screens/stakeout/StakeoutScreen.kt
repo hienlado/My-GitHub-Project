@@ -922,7 +922,11 @@ private fun CompassCardCompact(
     val needleAngle = animatedAzimuth - animatedHeading
 
     Surface(
-        modifier = Modifier.size(160.dp),
+        // 160 -> 104 dp (65%). La bàn này nằm ĐÈ trên bản đồ suốt lúc cắm mốc,
+        // cỡ cũ che mất một góc tư màn hình của máy 6 inch. Mọi kích thước bên
+        // trong đều tính theo `size` của Canvas nên thu nhỏ vỏ là đủ, không phải
+        // sửa từng nét vẽ.
+        modifier = Modifier.size(104.dp),
         shape    = androidx.compose.foundation.shape.CircleShape,
         color    = Color.Black.copy(alpha = cardAlpha * 0.6f),
         border   = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
@@ -1076,14 +1080,15 @@ private fun CompassCard(result: StakeoutResult.Active) {
 
             // Vòng tròn la bàn với mũi tên
             Box(
-                modifier          = Modifier.size(220.dp),
+                // 220 -> 143 dp (65%), giữ đúng tỉ lệ mũi tên/vòng nền như cũ.
+                modifier          = Modifier.size(143.dp),
                 contentAlignment  = Alignment.Center
             ) {
                 // Vòng nền + ký hiệu N/S/E/W
                 CompassRing(modifier = Modifier.fillMaxSize())
 
-                // Mũi tên quay theo azimuth
-                Canvas(modifier = Modifier.size(160.dp)) {
+                // Mũi tên quay theo azimuth — 160 -> 104 dp
+                Canvas(modifier = Modifier.size(104.dp)) {
                     rotate(degrees = animatedAzimuth, pivot = center) {
                         drawArrow(
                             color  = Color(0xFF1B5E20),
