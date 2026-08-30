@@ -38,7 +38,6 @@ fun CoordSettingsScreen(
     val calibN          by viewModel.calibN.collectAsStateWithLifecycle()
     val calibE          by viewModel.calibE.collectAsStateWithLifecycle()
     val calibEnabled    by viewModel.calibEnabled.collectAsStateWithLifecycle()
-    val report          by viewModel.report.collectAsStateWithLifecycle()
     val calibFeedback   by viewModel.calibFeedback.collectAsStateWithLifecycle()
     val antennaHeight   by viewModel.antennaHeight.collectAsStateWithLifecycle()
 
@@ -208,12 +207,11 @@ fun CoordSettingsScreen(
                 onClearFeedback = { viewModel.clearCalibFeedback() }
             )
 
-            // ── 6. Thông tin đơn vị đo đạc (in trên Biên bản) ──
-            ReportInfoCard(
-                report   = report,
-                onChange = { viewModel.updateReport(it) },
-                onSave   = { viewModel.saveReport() }
-            )
+            // ── Thông tin đơn vị đo đạc ĐÃ DỜI sang Dự án ▸ Cài đặt ──
+            // Đây là thông tin PHÁP NHÂN của đơn vị (tên, đại diện, địa chỉ),
+            // không phải tham số toán học của hệ toạ độ. Để lẫn ở đây thì người
+            // dùng phải vào "Hệ toạ độ" để sửa tên công ty — sai chỗ.
+            // Composable ReportInfoCard vẫn ở file này, nay do SettingsScreen gọi.
 
             // ── Nút Lưu ──────────────────────────────────────
             Button(
@@ -419,7 +417,7 @@ private fun CalibrationCard(
  * Đây là phần cố định của đơn vị, không nên bắt gõ lại ở từng biên bản.
  */
 @Composable
-private fun ReportInfoCard(
+internal fun ReportInfoCard(
     report   : com.hien.rtkmultidevice.data.datastore.AppSettings.ReportSettings,
     onChange : (com.hien.rtkmultidevice.data.datastore.AppSettings.ReportSettings) -> Unit,
     onSave   : () -> Unit

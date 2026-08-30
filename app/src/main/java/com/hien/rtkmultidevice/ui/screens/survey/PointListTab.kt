@@ -208,6 +208,13 @@ fun EnhancedPointListTab(
     val parcelVm: ParcelVerticesViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     val parcelVertices by parcelVm.vertices.collectAsStateWithLifecycle()
 
+    // Vào từ thẻ "Import file" / "Export file" ở tab Dự án -> mở thẳng hộp chọn
+    // định dạng, khỏi bắt người dùng tìm lại nút trong thanh công cụ.
+    LaunchedEffect(Unit) {
+        if (PointListEntryFlags.layImport()) showImportFmt = true
+        if (PointListEntryFlags.layExport()) showExportFmt = true
+    }
+
     // File picker cho Import — format đã chọn trước đó (pendingImportFmt)
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()

@@ -147,6 +147,25 @@ fun MapScreen(
             viewModel.clearTargetThua()
         }
     }
+
+    // ── Mở TỜ mới mà KHÔNG chỉ định thửa -> đưa bản đồ về GIỮA TỜ ──────────
+    //
+    // Bỏ bám GPS thì mất luôn thứ vẫn âm thầm kéo bản đồ tới chỗ vừa mở tờ.
+    // Đi tới THỬA thì đã có `focusPoint` lo; còn mở nguyên một tờ thì trước đây
+    // không ai lo, bản đồ đứng yên ở khung nhìn cũ, mở tờ xong không thấy gì.
+    //
+    // `toDaFit` chặn fit lặp: LaunchedEffect chạy lại mỗi khi mapRef đổi (xoay
+    // máy, đổi nguồn tile), fit lại thì cướp mất khung nhìn user vừa chỉnh.
+    var toDaFit by remember { mutableStateOf<Any?>(null) }
+    LaunchedEffect(importedLayer, mapRef) {
+        val layer = importedLayer ?: return@LaunchedEffect
+        val mv    = mapRef ?: return@LaunchedEffect
+        if (toDaFit === layer) return@LaunchedEffect
+        toDaFit = layer
+        // Có thửa đích thì nhường cho effect ở trên — nó phóng sát vào thửa.
+        if (!targetThua.isNullOrBlank()) return@LaunchedEffect
+        fitToVectorLayerMap(mv, layer)
+    }
     val ctx = androidx.compose.ui.platform.LocalContext.current
 
     // VÙNG quy hoạch sử dụng đất của các tờ đang mở — đọc file ngoài luồng chính.

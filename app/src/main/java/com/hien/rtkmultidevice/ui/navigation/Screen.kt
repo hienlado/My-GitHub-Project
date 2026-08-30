@@ -73,6 +73,12 @@ sealed class Screen(val route: String) {
     /** Màn hình chính 4 tab (Phase 9) */
     data object Main : Screen("main")
 
+    /** Dự án ▸ Cài đặt — thông tin đơn vị đo đạc (dời từ Hệ toạ độ sang) */
+    data object Settings : Screen("settings")
+
+    /** Thiết bị ▸ Thông tin — máy đã kết nối, hồ sơ hãng, NTRIP */
+    data object DeviceInfo : Screen("device_info")
+
     /** Màn hình đo tuyến Traverse (Phase 5.5) */
     data object Traverse : Screen("traverse/{projectId}") {
         fun createRoute(projectId: Int) = "traverse/$projectId"

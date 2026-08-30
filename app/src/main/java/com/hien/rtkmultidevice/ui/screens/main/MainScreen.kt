@@ -31,6 +31,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.hien.rtkmultidevice.BuildConfig
 import com.hien.rtkmultidevice.core.connection.ConnectionState
 import com.hien.rtkmultidevice.ui.screens.stakeout.StakeoutEntryFlags
+import com.hien.rtkmultidevice.ui.screens.survey.PointListEntryFlags
 import kotlinx.coroutines.launch
 
 /**
@@ -62,7 +64,9 @@ fun MainScreen(
     onNavigateTraverse  : (Int) -> Unit = {},
     onNavigateMap       : (Int) -> Unit,
     onNavigateCoord   : () -> Unit,
-    onNavigateBase    : () -> Unit = {}
+    onNavigateBase    : () -> Unit = {},
+    onNavigateSettings   : () -> Unit = {},
+    onNavigateDeviceInfo : () -> Unit = {}
 ) {
     // Mở app vào thẳng trang chính, mặc định tab Thiết bị (index 1) để kết nối trước
     var selectedTab by remember { mutableIntStateOf(1) }
@@ -148,7 +152,9 @@ fun MainScreen(
             )
         },
         bottomBar = {
-            NavigationBar {
+            // Cao 92.dp thay vì 80.dp mặc định. Hạ icon xuống 20.dp vẫn chưa đủ:
+            // chiều cao thanh mới là thứ chặn, nhãn bị cắt cụt ở CẠNH DƯỚI.
+            NavigationBar(modifier = Modifier.height(92.dp)) {
                 listOf(
                     Triple("Dự án",   Icons.Outlined.Folder,        Icons.Filled.Folder),
                     Triple("Thiết bị",Icons.Outlined.DeviceHub,     Icons.Filled.DeviceHub),
@@ -193,6 +199,7 @@ fun MainScreen(
                 onCoord          = onNavigateCoord,
                 onSurveyList     = { if (activeProjectId > 0) onNavigateSurvey(activeProjectId) else onNavigateProject() },
                 onMap            = { if (activeProjectId > 0) onNavigateMap(activeProjectId) else onNavigateProject() },
+                onSettings       = onNavigateSettings,
                 onComingSoon     = { pendingFeature.value = it }
             )
             1 -> DeviceTab(
@@ -202,6 +209,7 @@ fun MainScreen(
                 onRover          = { if (isConnected) onNavigateGnss() else onNavigateConnect() },
                 onNtrip          = { if (isConnected) onNavigateNtrip() else onNavigateConnect() },
                 onBase           = onNavigateBase,
+                onDeviceInfo     = onNavigateDeviceInfo,
                 onComingSoon     = { pendingFeature.value = it }
             )
             2 -> SurveyTab(
@@ -517,6 +525,7 @@ private fun ProjectTab(
     onCoord         : () -> Unit,
     onSurveyList    : () -> Unit,
     onMap           : () -> Unit,
+    onSettings      : () -> Unit,
     onComingSoon    : (String) -> Unit
 ) {
     val hasProject = activeProjectId > 0
@@ -545,20 +554,25 @@ private fun ProjectTab(
                 Icons.Default.Satellite, Color(0xFF2E7D32),
                 enabled = hasProject, onClick = onMap)
         }
+        // Import/Export nối THẲNG vào lệnh của danh sách toạ độ: đặt cờ rồi mở
+        // danh sách điểm, nó tự bật hộp chọn định dạng. Trước đây thẻ Import chỉ
+        // hiện "sắp có" dù lệnh thật đã nằm sẵn trong danh sách điểm.
         item {
-            FeatureCard("Import file", "CSV/TXT/DXF\nSHP",
+            FeatureCard("Import file", "CSV/TXT\nvào danh sách điểm",
                 Icons.Default.FileOpen, Color(0xFF6D4C41),
-                badge = "Mới", onClick = { onComingSoon("Import vào Stakeout") })
+                enabled = hasProject,
+                onClick = { PointListEntryFlags.openImport = true; onSurveyList() })
         }
         item {
-            FeatureCard("Export file", "CSV/TXT",
+            FeatureCard("Export file", "CSV/TXT\ntừ danh sách điểm",
                 Icons.Default.FileDownload, Color(0xFF558B2F),
-                enabled = hasProject, onClick = onSurveyList)
+                enabled = hasProject,
+                onClick = { PointListEntryFlags.openExport = true; onSurveyList() })
         }
         item {
-            FeatureCard("Cài đặt", "Ứng dụng",
+            FeatureCard("Cài đặt", "Đơn vị đo đạc\nứng dụng",
                 Icons.Default.Settings, Color(0xFF546E7A),
-                onClick = { onComingSoon("Cài đặt ứng dụng") })
+                onClick = onSettings)
         }
         item {
             FeatureCard("Khác", "",
@@ -580,6 +594,7 @@ private fun DeviceTab(
     onConnect    : () -> Unit,
     onRover      : () -> Unit,
     onNtrip      : () -> Unit,
+    onDeviceInfo : () -> Unit,
     onComingSoon : (String) -> Unit
 ) {
     LazyVerticalGrid(
@@ -613,9 +628,9 @@ private fun DeviceTab(
                 onClick = onBase)
         }
         item {
-            FeatureCard("Thông tin", "Firmware\ntrạng thái",
+            FeatureCard("Thông tin", "Máy đã kết nối\nIP · cổng · NTRIP",
                 Icons.Default.Info, Color(0xFF546E7A),
-                onClick = { onComingSoon("Thông tin thiết bị") })
+                onClick = onDeviceInfo)
         }
         item {
             FeatureCard("Đo tĩnh", "Static\nsurvey",
@@ -646,6 +661,7 @@ private fun SurveyTab(
     onComingSoon    : (String) -> Unit
 ) {
     val hasProject = activeProjectId > 0
+    var moDinhVi by remember { mutableStateOf(false) }
 
     LazyVerticalGrid(
         columns               = GridCells.Fixed(3),
@@ -658,40 +674,47 @@ private fun SurveyTab(
                 Icons.Default.AddLocation, Color(0xFF2E7D32),
                 enabled = hasProject && isConnected, onClick = onMeasure)
         }
+        // GỘP 5 THẺ THÀNH 1: Bố trí điểm · Đo tuyến · Định vị tuyến ·
+        // Định vị CAD · Bố trí bề mặt  ->  "Định vị".
+        // Xoá 4 icon (Layers/Timeline/Route/Terrain), GIỮ LẠI NearMe — icon
+        // mũi tên dẫn hướng, sát nghĩa "định vị" nhất trong năm cái.
         item {
-            FeatureCard("Bố trí điểm", "Stakeout\ncắm mốc",
+            FeatureCard("Định vị", "Bố trí điểm\nCAD · tuyến · bề mặt",
                 Icons.Default.NearMe, Color(0xFF1565C0),
-                onClick = onStakeout)
-        }
-        item {
-            FeatureCard("Định vị CAD", "DXF/SHP\ntrên bản đồ",
-                Icons.Default.Layers, Color(0xFF6D4C41),
-                badge = "Mới", enabled = hasProject, onClick = onMap)
-        }
-        item {
-            FeatureCard("Đo tuyến", "Traverse\npolyline",
-                Icons.Default.Timeline, Color(0xFF4527A0),
-                enabled = hasProject, onClick = onTraverse)
-        }
-        item {
-            FeatureCard("Định vị tuyến", "Dẫn hướng\ntới tuyến",
-                Icons.Default.Route, Color(0xFF00838F),
-                onClick = {
-                    // Đặt cờ → StakeoutScreen tự mở picker chọn 2 điểm (đặt tên → đầu/cuối)
-                    StakeoutEntryFlags.openLinePicker = true
-                    onStakeout()
-                })
-        }
-        item {
-            FeatureCard("Bố trí bề mặt", "DTM/TIN\ngrading",
-                Icons.Default.Terrain, Color(0xFF00695C),
-                onClick = { onComingSoon("Bố trí bề mặt") })
+                onClick = { moDinhVi = true })
         }
         item {
             FeatureCard("Khác", "",
                 Icons.Default.MoreHoriz, Color(0xFF78909C),
                 onClick = { onComingSoon("Tính năng khác") })
         }
+    }
+
+    if (moDinhVi) {
+        MenuGop(
+            tieuDe = "Định vị",
+            onDong = { moDinhVi = false },
+            muc = listOf(
+                MucGop("Bố trí điểm", "Stakeout — dẫn tới một điểm đã biết") {
+                    onStakeout()
+                },
+                MucGop("Định vị tuyến", "Dẫn hướng tới tuyến nối 2 điểm") {
+                    // Cờ → StakeoutScreen tự mở picker chọn 2 điểm (đầu/cuối)
+                    StakeoutEntryFlags.openLinePicker = true
+                    onStakeout()
+                },
+                MucGop("Đo tuyến", "Traverse — polyline", batBuocDuAn = true) {
+                    onTraverse()
+                },
+                MucGop("Định vị CAD", "Mở DXF/SHP trên bản đồ", batBuocDuAn = true) {
+                    onMap()
+                },
+                MucGop("Bố trí bề mặt", "DTM/TIN — grading (chưa làm)") {
+                    onComingSoon("Bố trí bề mặt")
+                }
+            ),
+            coDuAn = hasProject
+        )
     }
 }
 
@@ -705,6 +728,8 @@ private fun ToolsTab(
     onCoord      : () -> Unit,
     onComingSoon : (String) -> Unit
 ) {
+    var moCogo by remember { mutableStateOf(false) }
+
     LazyVerticalGrid(
         columns               = GridCells.Fixed(3),
         modifier              = modifier.fillMaxSize().padding(12.dp),
@@ -721,25 +746,93 @@ private fun ToolsTab(
                 Icons.Default.Language, Color(0xFF00695C),
                 onClick = onCoord)
         }
+        // GỘP 3 THẺ THÀNH 1: Tính diện tích · Tính khối lượng · COGO -> "COGO".
+        // Xoá 2 icon (SquareFoot/Landscape), GIỮ LẠI Explore.
+        // COGO = coordinate geometry, tên gọi đúng cho cả nhóm phép tính hình học
+        // và còn chỗ để thêm phép mới sau này.
         item {
-            FeatureCard("Tính diện tích", "Polygon\narea",
-                Icons.Default.SquareFoot, Color(0xFF2E7D32),
-                onClick = { onComingSoon("Tính diện tích") })
-        }
-        item {
-            FeatureCard("Tính khối lượng", "Volume\nDTM",
-                Icons.Default.Landscape, Color(0xFF4527A0),
-                onClick = { onComingSoon("Tính khối lượng") })
-        }
-        item {
-            FeatureCard("COGO", "Bearing\nDistance",
+            FeatureCard("COGO", "Hình học toạ độ\ndiện tích · khối lượng",
                 Icons.Default.Explore, Color(0xFF6D4C41),
-                onClick = { onComingSoon("COGO") })
+                onClick = { moCogo = true })
         }
         item {
             FeatureCard("Khác", "",
                 Icons.Default.MoreHoriz, Color(0xFF78909C),
                 onClick = { onComingSoon("Tính năng khác") })
         }
+    }
+
+    if (moCogo) {
+        MenuGop(
+            tieuDe = "COGO — hình học toạ độ",
+            onDong = { moCogo = false },
+            muc = listOf(
+                MucGop("Nghịch đảo", "Hai điểm → phương vị, khoảng cách") {
+                    onComingSoon("COGO — nghịch đảo") },
+                MucGop("Điểm theo phương vị", "Điểm gốc + góc + cạnh → điểm mới") {
+                    onComingSoon("COGO — điểm theo phương vị") },
+                MucGop("Giao hội", "Giao hội cạnh / góc") {
+                    onComingSoon("COGO — giao hội") },
+                MucGop("Tính diện tích", "Diện tích, chu vi đa giác") {
+                    onComingSoon("Tính diện tích") },
+                MucGop("Tính khối lượng", "Đào/đắp theo DTM (chưa làm)") {
+                    onComingSoon("Tính khối lượng") }
+            ),
+            coDuAn = true
+        )
+    }
+}
+
+// ════════════════════════════════════════════════════════
+// MenuGop — bảng chọn cho các thẻ ĐÃ GỘP (Định vị, COGO)
+// ════════════════════════════════════════════════════════
+/**
+ * Gộp N thẻ thành 1 thì N chức năng cũ phải đi đâu đó. Ở đây chúng thành các
+ * dòng trong một bảng trượt lên từ cạnh dưới.
+ *
+ * Vì sao KHÔNG làm màn hình mới có route riêng: các chức năng này đã có màn
+ * hình của chúng rồi (Stakeout, Traverse, Map). Thêm một màn hình trung gian
+ * nữa chỉ để bấm tiếp một nút là bắt người đo chạm thừa một lần, và thêm một
+ * chỗ nữa có thể hỏng khi điều hướng.
+ *
+ * @param batBuocDuAn mục cần có dự án đang mở mới bấm được.
+ */
+private data class MucGop(
+    val ten         : String,
+    val moTa        : String,
+    val batBuocDuAn : Boolean = false,
+    val onClick     : () -> Unit
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MenuGop(
+    tieuDe : String,
+    muc    : List<MucGop>,
+    coDuAn : Boolean,
+    onDong : () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDong) {
+        Text(
+            tieuDe,
+            style    = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
+        )
+        muc.forEach { m ->
+            val bat = !m.batBuocDuAn || coDuAn
+            ListItem(
+                headlineContent   = { Text(m.ten) },
+                supportingContent = {
+                    Text(if (bat) m.moTa else m.moTa + " — cần mở dự án trước")
+                },
+                trailingContent   = { Icon(Icons.Default.ChevronRight, null) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .alpha(if (bat) 1f else 0.45f)
+                    .clickable(enabled = bat) { onDong(); m.onClick() }
+            )
+        }
+        Spacer(Modifier.height(20.dp))
     }
 }

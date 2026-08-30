@@ -67,7 +67,21 @@ fun AppNavGraph(navController: NavHostController) {
                 onNavigateTraverse  = { pId -> navController.navigate(Screen.Traverse.createRoute(pId)) },
                 onNavigateMap       = { pId -> navController.navigate(Screen.Map.createRoute(pId)) },
                 onNavigateCoord    = { navController.navigate(Screen.CoordSettings.route) },
-                onNavigateBase     = { navController.navigate(Screen.BaseConfig.route) }
+                onNavigateBase     = { navController.navigate(Screen.BaseConfig.route) },
+                onNavigateSettings   = { navController.navigate(Screen.Settings.route) },
+                onNavigateDeviceInfo = { navController.navigate(Screen.DeviceInfo.route) }
+            )
+        }
+
+        composable(Screen.Settings.route) {
+            com.hien.rtkmultidevice.ui.screens.settings.SettingsScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.DeviceInfo.route) {
+            com.hien.rtkmultidevice.ui.screens.deviceinfo.DeviceInfoScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
