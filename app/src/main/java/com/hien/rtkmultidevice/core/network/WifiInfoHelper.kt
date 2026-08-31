@@ -144,11 +144,28 @@ object WifiInfoHelper {
     fun wifiNetwork(context: Context): Network? = runCatching {
         val cm = context.getSystemService(ConnectivityManager::class.java) ?: return null
         @Suppress("DEPRECATION")
-        cm.allNetworks.firstOrNull { n ->
-            val c = cm.getNetworkCapabilities(n) ?: return@firstOrNull false
+        val wifis = cm.allNetworks.filter { n ->
+            val c = cm.getNetworkCapabilities(n) ?: return@filter false
             c.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
                 c.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
         }
+        if (wifis.size <= 1) return@runCatching wifis.firstOrNull()
+
+        // ⚠ `allNetworks` trả về CẢ mạng WiFi CŨ đang rời đi, không chỉ mạng đang
+        //   dùng. Bản trước lấy `firstOrNull` — vớ phải cái đã chết thì socket
+        //   không báo lỗi ngay mà TREO tới lúc hết giờ: trang cấu hình máy thu
+        //   nạp được nửa chừng rồi đứng, đúng cái cảm giác "mạng yếu".
+        //   Xảy ra thường nhất ngay sau khi đổi/nối lại WiFi của máy thu.
+        //
+        //   Mạng còn sống thì có ĐỊA CHỈ IPv4 trên link. Lấy nó làm mốc phân biệt.
+        //   Không dùng `cm.activeNetwork`: khi NTRIP đang chạy, app đã
+        //   bindProcessToNetwork(cellular) nên activeNetwork trả về 4G, không
+        //   phải WiFi.
+        wifis.firstOrNull { n ->
+            cm.getLinkProperties(n)?.linkAddresses?.any {
+                it.address is java.net.Inet4Address && !it.address.isLoopbackAddress
+            } == true
+        } ?: wifis.first()
     }.getOrNull()
 
     /** Thử 1 địa chỉ:cổng cụ thể — dùng để xác nhận lại máy đã từng kết nối. */

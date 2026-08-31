@@ -14,7 +14,6 @@ import com.hien.rtkmultidevice.core.gnss.NmeaVerifier
 import com.hien.rtkmultidevice.core.network.WifiInfoHelper
 import com.hien.rtkmultidevice.data.datastore.AppSettings
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import com.hien.rtkmultidevice.core.permission.BluetoothPermissionState
 import com.hien.rtkmultidevice.core.permission.PermissionManager
 import com.hien.rtkmultidevice.domain.model.DeviceInfo
@@ -73,26 +72,6 @@ class ConnectionViewModel @Inject constructor(
         )
 
     // ── Connection State ─────────────────────────────────────
-    /**
-     * Tóm tắt cấu hình NTRIP đang lưu, cho màn "Thông tin thiết bị".
-     *
-     * ⚠ TUYỆT ĐỐI KHÔNG đưa `password` ra. Màn thông tin là chỗ người ta hay
-     *   chụp màn hình gửi cho nhau khi nhờ chỉnh máy. Tên đăng nhập thì cần để
-     *   nhận ra tài khoản, mật khẩu thì không việc gì phải hiện.
-     */
-    val ntripTomTat: StateFlow<String> = appSettings.ntripConfigFlow
-        .map { c ->
-            if (c.host.isBlank()) ""
-            else buildString {
-                append(c.host).append(':').append(c.port)
-                if (c.normalizedMountPoint.isNotBlank())
-                    append("  ·  ").append(c.normalizedMountPoint)
-                if (c.username.isNotBlank())
-                    append("  ·  tài khoản ").append(c.username)
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
-
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 

@@ -20,7 +20,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hien.rtkmultidevice.core.network.WifiInfoHelper
 import com.hien.rtkmultidevice.domain.model.DeviceInfo
-import com.hien.rtkmultidevice.ui.screens.connection.ConnectionViewModel
 
 /**
  * DeviceInfoScreen — Thiết bị ▸ Thông tin.
@@ -37,15 +36,18 @@ import com.hien.rtkmultidevice.ui.screens.connection.ConnectionViewModel
  * ⚠ KHÔNG hiển thị mật khẩu NTRIP. Màn này là chỗ người ta hay chụp màn hình
  *   gửi nhau khi nhờ chỉnh máy.
  *
- * Dùng lại `ConnectionViewModel` thay vì viết ViewModel mới: nó đã có
- * `recentDevices` và `appSettings` sẵn, thêm một VM nữa cho cùng bộ dữ liệu chỉ
- * tạo chỗ để hai bên lệch nhau.
+ * ⚠ Dùng `DeviceInfoViewModel` — ViewModel CHỈ ĐỌC của riêng màn này. Bản đầu
+ * mượn `ConnectionViewModel` cho gọn và đã gây lỗi máy thu đứng ở SINGLE; lý do
+ * đầy đủ ghi trong DeviceInfoViewModel.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceInfoScreen(
     onNavigateBack : () -> Unit,
-    viewModel      : ConnectionViewModel = hiltViewModel()
+    // ⚠ KHÔNG dùng ConnectionViewModel ở đây — xem ghi chú đỏ trong
+    //   DeviceInfoViewModel: nó có init tác dụng phụ, ghé màn này là hỏng
+    //   cảnh báo đổi IP điện thoại và máy thu đứng ở SINGLE.
+    viewModel      : DeviceInfoViewModel = hiltViewModel()
 ) {
     val recent by viewModel.recentDevices.collectAsStateWithLifecycle()
     val ntrip  by viewModel.ntripTomTat.collectAsStateWithLifecycle()
