@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,6 +52,7 @@ fun DeviceInfoScreen(
 ) {
     val recent by viewModel.recentDevices.collectAsStateWithLifecycle()
     val ntrip  by viewModel.ntripTomTat.collectAsStateWithLifecycle()
+    val canhBao by viewModel.canhBao.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -69,6 +71,31 @@ fun DeviceInfoScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // Cảnh báo đang treo — để TRÊN CÙNG, không nhét xuống cuối trang.
+            canhBao?.let { c ->
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor   = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Warning, null, Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(c.tieuDe, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(c.chiTiet, fontSize = 12.sp)
+                            Spacer(Modifier.height(10.dp))
+                            Text("→ " + c.phaiLam, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+
             item { TieuDe("Máy đã từng kết nối (${recent.size})") }
             if (recent.isEmpty()) {
                 item {
@@ -106,6 +133,37 @@ fun DeviceInfoScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp)
                 )
+            }
+
+            item {
+                Spacer(Modifier.height(10.dp))
+                TieuDe("Ghi nhớ — máy đứng ở SINGLE, không lên FIXED")
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(
+                            "Máy thu bắt đủ vệ tinh mà vẫn SINGLE thì gần như luôn là " +
+                            "KHÔNG NHẬN ĐƯỢC CẢI CHÍNH, không phải lỗi máy thu. " +
+                            "Kiểm tra theo đúng thứ tự này:",
+                            fontSize = 12.sp
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Buoc("1", "Mật khẩu NTRIP",
+                             "Nguyên nhân số một, đã gặp 31/08/2026: nhà cung cấp đổi " +
+                             "mật khẩu, caster trả 401, máy thu thử lại 5 giây một lần " +
+                             "vô tận. Vào Thiết bị ▸ NTRIP nhập lại mật khẩu.")
+                        Buoc("2", "IP điện thoại đổi",
+                             "Máy thu lấy cải chính từ điện thoại nên phải trỏ đúng IP. " +
+                             "Xem IP ở Thiết bị ▸ Kết nối, rồi sửa mục RTK Client trên " +
+                             "trang web máy thu cho khớp.")
+                        Buoc("3", "Mountpoint",
+                             "Sai tên mountpoint thì caster trả bảng sourcetable thay vì " +
+                             "dòng cải chính. Đối chiếu lại tên trong Thiết bị ▸ NTRIP.")
+                        Buoc("4", "Dữ liệu di động",
+                             "WiFi của máy thu không có Internet. App tự chuyển sang 4G, " +
+                             "nhưng SIM hết dung lượng hoặc vùng không sóng thì cải chính " +
+                             "không về được.")
+                    }
+                }
             }
         }
     }
@@ -162,6 +220,27 @@ private fun TheHoSo(pr: WifiInfoHelper.Profile) {
                 "IP: " + pr.hosts.joinToString(", ") { if (it.isBlank()) "gateway WiFi" else it } +
                         "   ·   Cổng: " + pr.ports.joinToString(", "),
                 fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun Buoc(so: String, ten: String, moTa: String) {
+    Row(Modifier.padding(bottom = 10.dp)) {
+        Text(
+            so,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.width(20.dp)
+        )
+        Column {
+            Text(ten, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+            Text(
+                moTa,
+                fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

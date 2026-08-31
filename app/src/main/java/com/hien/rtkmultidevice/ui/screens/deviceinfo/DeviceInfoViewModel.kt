@@ -2,6 +2,7 @@ package com.hien.rtkmultidevice.ui.screens.deviceinfo
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.hien.rtkmultidevice.core.gnss.ntrip.NtripCanhBao
 import com.hien.rtkmultidevice.data.datastore.AppSettings
 import com.hien.rtkmultidevice.domain.model.DeviceInfo
 import com.hien.rtkmultidevice.domain.repository.IDeviceRepository
@@ -39,6 +40,9 @@ class DeviceInfoViewModel @Inject constructor(
     deviceRepository : IDeviceRepository,
     appSettings      : AppSettings
 ) : ViewModel() {
+
+    /** Lỗi NTRIP vĩnh viễn đang treo (401 sai tài khoản…), null = không có. */
+    val canhBao: StateFlow<NtripCanhBao.CanhBao?> = NtripCanhBao.canhBao
 
     /** Máy đã từng kết nối thành công (bảng `devices` trong Room). */
     val recentDevices: StateFlow<List<DeviceInfo>> = deviceRepository

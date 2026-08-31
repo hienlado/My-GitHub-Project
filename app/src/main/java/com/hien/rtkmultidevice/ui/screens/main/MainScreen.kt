@@ -31,6 +31,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -597,6 +598,9 @@ private fun DeviceTab(
     onDeviceInfo : () -> Unit,
     onComingSoon : (String) -> Unit
 ) {
+    val canhBaoNtrip by com.hien.rtkmultidevice.core.gnss.ntrip.NtripCanhBao
+        .canhBao.collectAsStateWithLifecycle()
+
     LazyVerticalGrid(
         columns               = GridCells.Fixed(3),
         modifier              = modifier.fillMaxSize().padding(12.dp),
@@ -628,8 +632,16 @@ private fun DeviceTab(
                 onClick = onBase)
         }
         item {
-            FeatureCard("Thông tin", "Máy đã kết nối\nIP · cổng · NTRIP",
-                Icons.Default.Info, Color(0xFF546E7A),
+            // Có lỗi NTRIP vĩnh viễn đang treo thì phải THẤY ĐƯỢC TỪ NGOÀI.
+            // Bắt người dùng mở màn Thông tin ra mới biết thì chẳng khác gì
+            // để nó nằm trong logcat.
+            FeatureCard(
+                "Thông tin",
+                if (canhBaoNtrip != null) "⚠ NTRIP lỗi\nchạm để xem"
+                else "Máy đã kết nối\nIP · cổng · NTRIP",
+                Icons.Default.Info,
+                if (canhBaoNtrip != null) Color(0xFFC62828) else Color(0xFF546E7A),
+                badge = if (canhBaoNtrip != null) "!" else null,
                 onClick = onDeviceInfo)
         }
         item {
