@@ -137,7 +137,21 @@ class AppSettings @Inject constructor(
             port               = prefs[KEY_NTRIP_PORT]         ?: 2101,
             mountPoint         = prefs[KEY_NTRIP_MOUNTPOINT]   ?: "",
             username           = prefs[KEY_NTRIP_USERNAME]     ?: "",
-            password           = secureStringCipher.decrypt(prefs[KEY_NTRIP_PASSWORD] ?: ""),
+            password           = (prefs[KEY_NTRIP_PASSWORD] ?: "").let { luu ->
+                secureStringCipher.decryptOrNull(luu) ?: run {
+                    // Có bản mã trong máy nhưng KHÔNG giải được -> khoá Keystore
+                    // đã bị tạo lại. Trả rỗng lặng lẽ thì caster trả 401 và
+                    // người đo ngồi nhìn SINGLE mà không hiểu vì sao.
+                    android.util.Log.e(
+                        "NtripClient",
+                        "🔴 MẬT KHẨU NTRIP KHÔNG GIẢI MÃ ĐƯỢC (khoá Keystore đã đổi — " +
+                        "thường do gỡ/cài lại app hoặc xoá dữ liệu app). " +
+                        "Caster sẽ trả 401 Unauthorized. " +
+                        "KHẮC PHỤC: vào Thiết bị ▸ NTRIP nhập lại mật khẩu rồi Lưu."
+                    )
+                    ""
+                }
+            },
             ggaIntervalSeconds = prefs[KEY_NTRIP_GGA_INTERVAL] ?: 5
         )
     }

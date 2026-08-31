@@ -35,6 +35,35 @@ class SecureStringCipher {
             Base64.encodeToString(encrypted, Base64.NO_WRAP)
     }
 
+    /**
+     * Giải mã, trả về **null khi HỎNG** — khác hẳn chuỗi rỗng.
+     *
+     * 🔴 Vì sao phải tách hai trường hợp: `decrypt()` cũ nuốt mọi lỗi thành "".
+     * Mật khẩu NTRIP giải mã hỏng liền biến thành rỗng, `buildBasicAuth` vẫn
+     * dựng ra header `Basic <user>:` trông hợp lệ, caster trả **401
+     * Unauthorized**, máy thu thử lại 5 giây một lần vô tận. Trên màn hình chỉ
+     * thấy SINGLE mãi không lên FIXED, không một dòng nào nói vì sao.
+     *
+     * Khoá AES nằm trong Android Keystore. Nó không giải mã được nữa khi khoá bị
+     * tạo lại — gỡ cài đặt rồi cài lại, xoá dữ liệu app, khôi phục từ bản sao
+     * lưu sang máy khác. Bản mã cũ trong DataStore thì vẫn còn nguyên.
+     */
+    fun decryptOrNull(value: String): String? {
+        if (value.isEmpty()) return ""
+        if (!value.startsWith(encryptedPrefix)) return value
+        return runCatching {
+            val payload = value.removePrefix(encryptedPrefix)
+            val parts = payload.split(":", limit = 2)
+            require(parts.size == 2)
+
+            val iv = Base64.decode(parts[0], Base64.NO_WRAP)
+            val encrypted = Base64.decode(parts[1], Base64.NO_WRAP)
+            val cipher = Cipher.getInstance(transformation)
+            cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(128, iv))
+            cipher.doFinal(encrypted).toString(Charsets.UTF_8)
+        }.getOrNull()
+    }
+
     fun decrypt(value: String): String {
         if (value.isEmpty()) return ""
         if (!value.startsWith(encryptedPrefix)) return value
