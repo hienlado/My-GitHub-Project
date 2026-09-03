@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.nativeCanvas
@@ -48,6 +49,14 @@ fun CogoButton(
         Icon(Icons.Default.Calculate, contentDescription = "Công cụ COGO")
     }
     if (show) CogoDialog(points = points, onDismiss = { show = false }, onStakeout = onStakeout)
+}
+
+/** Thứ tự thẻ trong CogoDialog — dùng cho tham số `congCuBanDau`. */
+object CogoTool {
+    const val NGHICH_DAO = 0
+    const val DIEM_PHUONG_VI = 1
+    const val DIEN_TICH = 2
+    const val GIAO_HOI = 3
 }
 
 private fun pd(s: String): Double? = s.trim().replace(',', '.').toDoubleOrNull()
@@ -107,8 +116,9 @@ fun CogoDialog(
     onDismiss: () -> Unit,
     points: List<CogoPoint> = emptyList(),
     onStakeout: ((name: String, n: Double, e: Double) -> Unit)? = null,
+    congCuBanDau: Int = CogoTool.NGHICH_DAO,
 ) {
-    var tool by remember { mutableStateOf(0) }
+    var tool by remember { mutableStateOf(congCuBanDau) }
     val tabs = listOf("Nghịch đảo", "Điểm P.vị", "Diện tích", "Giao hội")
 
     AlertDialog(
@@ -116,18 +126,32 @@ fun CogoDialog(
         title = { Text("Công cụ COGO") },
         text = {
             Column {
-                Row {
+                // Hàng thẻ ĐỨNG YÊN, không cuộn theo nội dung — luôn đổi được
+                // công cụ dù đang ở giữa một danh sách đỉnh dài.
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                     tabs.forEachIndexed { i, name ->
                         FilterChip(selected = tool == i, onClick = { tool = i }, label = { Text(name) })
                         if (i < tabs.lastIndex) Spacer(Modifier.width(6.dp))
                     }
                 }
                 Spacer(Modifier.height(10.dp))
-                when (tool) {
-                    0 -> InverseTool(points)
-                    1 -> PointTool(points, onStakeout)
-                    2 -> AreaTool(points)
-                    else -> IntersectTool(points, onStakeout)
+                // 🔴 CUỘN Ở ĐÂY, VÀ CHỈ Ở ĐÂY. Trả giá 03/09/2026: AreaTool có
+                // khung xem trước 150 dp + danh sách đỉnh 150 dp, đủ 4 đỉnh là
+                // tổng chiều cao vượt quá khung AlertDialog, nút "Tính" bị đẩy
+                // xuống dưới mép và BIẾN MẤT — không báo lỗi gì.
+                // Compose CẤM lồng hai vùng cuộn cùng phương, nên vùng cuộn
+                // trong AreaTool đã bị bỏ đi. Đừng thêm lại.
+                Column(
+                    Modifier
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    when (tool) {
+                        CogoTool.NGHICH_DAO     -> InverseTool(points)
+                        CogoTool.DIEM_PHUONG_VI -> PointTool(points, onStakeout)
+                        CogoTool.DIEN_TICH      -> AreaTool(points)
+                        else                    -> IntersectTool(points, onStakeout)
+                    }
                 }
             }
         },
@@ -198,9 +222,20 @@ private fun AreaTool(points: List<CogoPoint>) {
     val vertNames = remember { mutableStateListOf<String>() }
     var manN by remember { mutableStateOf("") }; var manE by remember { mutableStateOf("") }
     var menu by remember { mutableStateOf(false) }
-    var out by remember { mutableStateOf("") }
 
     fun add(name: String, p: Cogo.Pt) { verts.add(p); vertNames.add(name) }
+
+    // TÍNH NGAY khi danh sách đỉnh đổi, không qua nút bấm.
+    // Nút "Tính" từng nằm dưới cùng và bị khung thoại cắt mất khi đủ 4 đỉnh.
+    // Bỏ hẳn nút thì không còn chỗ để hỏng, và người đo thấy diện tích lớn dần
+    // theo từng đỉnh — bắt được lỗi chọn nhầm đỉnh sớm hơn.
+    val out: String = if (verts.size < 3) {
+        if (verts.isEmpty()) "" else "Cần ≥ 3 đỉnh (đang có ${verts.size})"
+    } else {
+        val r = Cogo.areaPerimeter(verts.toList())
+        "Số đỉnh: %d\nDiện tích: %,.2f m²  (%.4f ha)\nChu vi: %,.3f m"
+            .format(r.vertexCount, r.area, r.area / 10000.0, r.perimeter)
+    }
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -221,25 +256,26 @@ private fun AreaTool(points: List<CogoPoint>) {
                 }
             }
             if (verts.isNotEmpty())
-                TextButton(onClick = { verts.clear(); vertNames.clear(); out = "" }) { Text("Xoá hết") }
+                TextButton(onClick = { verts.clear(); vertNames.clear() }) { Text("Xoá hết") }
         }
 
         // ── XEM TRƯỚC HÌNH THỂ — kiểm tra thứ tự đỉnh trước khi tính ──
         // Chọn nhầm thứ tự sẽ tạo hình "thắt nút", diện tích sai mà nhìn số
         // không phát hiện được. Vẽ ra là thấy ngay.
         if (verts.size >= 2) {
-            AreaPreview(verts.toList(), modifier = Modifier.fillMaxWidth().height(150.dp))
+            AreaPreview(verts.toList(), modifier = Modifier.fillMaxWidth().height(130.dp))
             Spacer(Modifier.height(4.dp))
         }
 
-        // Danh sách đỉnh đã chọn — CUỘN ĐƯỢC, giới hạn chiều cao để
-        // nút "Tính" luôn nhìn thấy dù thửa có hàng chục đỉnh.
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 150.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
+        // Kết quả đặt NGAY ĐÂY, trên danh sách đỉnh — thửa nhiều đỉnh thì danh
+        // sách dài, để kết quả ở cuối là lại phải cuộn xuống mới thấy số.
+        resultText(out)
+        if (out.isNotEmpty()) Spacer(Modifier.height(6.dp))
+
+        // Danh sách đỉnh đã chọn. KHÔNG đặt vùng cuộn ở đây — CogoDialog đã
+        // bọc toàn bộ nội dung trong một vùng cuộn, lồng thêm là Compose ném
+        // "Nesting scrollable in the same direction layouts is not allowed".
+        Column(modifier = Modifier.fillMaxWidth()) {
             verts.forEachIndexed { i, p ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Text("${i + 1}. ${vertNames.getOrElse(i) { "" }}  (%.2f, %.2f)".format(p.n, p.e),
@@ -262,17 +298,6 @@ private fun AreaTool(points: List<CogoPoint>) {
                 if (a != null && b != null) { add("tay", Cogo.Pt(a, b)); manN = ""; manE = "" }
             }) { Icon(Icons.Default.PlaylistAdd, contentDescription = "Thêm đỉnh nhập tay") }
         }
-
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = {
-            out = if (verts.size < 3) "Cần ≥ 3 đỉnh"
-            else {
-                val r = Cogo.areaPerimeter(verts.toList())
-                "Số đỉnh: %d\nDiện tích: %,.2f m²  (%.4f ha)\nChu vi: %,.3f m"
-                    .format(r.vertexCount, r.area, r.area / 10000.0, r.perimeter)
-            }
-        }) { Text("Tính") }
-        Spacer(Modifier.height(8.dp)); resultText(out)
     }
 }
 

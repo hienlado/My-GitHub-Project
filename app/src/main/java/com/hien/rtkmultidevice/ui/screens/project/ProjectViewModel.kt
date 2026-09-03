@@ -55,7 +55,12 @@ class ProjectViewModel @Inject constructor(
     private val _newZoneWidth   = MutableStateFlow(3)
     val newZoneWidth: StateFlow<Int> = _newZoneWidth.asStateFlow()
 
-    private val _newCm          = MutableStateFlow(0.0)   // 0.0 = auto
+    // Mặc định 107°45' — kinh tuyến trục Bà Rịa – Vũng Tàu (TT 973/2001/TT-TCĐC).
+    // Trước đây để 0.0 (tự động chọn theo kinh độ), nhưng "tự động" chỉ chạy khi
+    // ĐÃ có toạ độ; lúc tạo dự án thì thường chưa bắt được vệ tinh, nên dự án ra
+    // đời với múi rỗng rồi kéo theo sai toạ độ cả buổi đo. Đặt sẵn múi của tỉnh
+    // đang làm việc là an toàn hơn, và vẫn đổi được bằng một lần chạm.
+    private val _newCm          = MutableStateFlow(CM_MAC_DINH)
     val newCm: StateFlow<Double> = _newCm.asStateFlow()
 
     private val _newPrefix      = MutableStateFlow("P")
@@ -79,7 +84,7 @@ class ProjectViewModel @Inject constructor(
         _newName.value        = ""
         _newDescription.value = ""
         _newZoneWidth.value   = 3
-        _newCm.value          = 0.0
+        _newCm.value          = CM_MAC_DINH
         _newPrefix.value      = "P"
         _showCreateDialog.value = true
     }
@@ -193,4 +198,10 @@ class ProjectViewModel @Inject constructor(
     }
 
     fun clearError() { _error.value = null }
+
+    companion object {
+        /** Kinh tuyến trục mặc định: 107°45' — Bà Rịa – Vũng Tàu. Múi 3°. */
+        const val CM_MAC_DINH = 107.75
+    }
+
 }

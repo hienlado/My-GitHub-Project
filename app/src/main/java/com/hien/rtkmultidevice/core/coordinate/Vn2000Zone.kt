@@ -18,7 +18,7 @@ package com.hien.rtkmultidevice.core.coordinate
  *   106°30'  — Nghệ An, Hà Tĩnh
  *   107°00'  — Quảng Bình, Quảng Trị
  *   107°15'  — Thừa Thiên Huế, Đà Nẵng
- *   107°45'  — Quảng Nam, Quảng Ngãi
+ *   107°45'  — Bà Rịa – Vũng Tàu, Quảng Nam, Quảng Ngãi   ← mặc định của app
  *   108°00'  — Bình Định, Phú Yên
  *   108°15'  — Khánh Hoà, Đắk Lắk
  *   108°30'  — Nam Trung Bộ, Đông Nam Bộ (TP.HCM)
@@ -57,7 +57,7 @@ object Vn2000Zone {
         ZoneInfo(106.5,    "106°30'E", "Nghệ An, Hà Tĩnh"),
         ZoneInfo(107.0,    "107°00'E", "Quảng Bình, Quảng Trị"),
         ZoneInfo(107.25,   "107°15'E", "Thừa Thiên Huế, Đà Nẵng"),
-        ZoneInfo(107.75,   "107°45'E", "Quảng Nam, Quảng Ngãi"),
+        ZoneInfo(107.75,   "107°45'E", "Bà Rịa – Vũng Tàu, Quảng Nam, Quảng Ngãi"),
         ZoneInfo(108.0,    "108°00'E", "Bình Định, Phú Yên"),
         ZoneInfo(108.25,   "108°15'E", "Khánh Hoà, Đắk Lắk"),
         ZoneInfo(108.5,    "108°30'E", "Nam Trung Bộ, Đông Nam Bộ, TP.HCM")

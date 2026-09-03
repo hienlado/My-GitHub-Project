@@ -37,7 +37,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.hien.rtkmultidevice.BuildConfig
+import com.hien.rtkmultidevice.ui.screens.map.CogoDialog
+import com.hien.rtkmultidevice.ui.screens.map.CogoTool
 import com.hien.rtkmultidevice.core.connection.ConnectionState
 import com.hien.rtkmultidevice.ui.screens.stakeout.StakeoutEntryFlags
 import com.hien.rtkmultidevice.ui.screens.survey.PointListEntryFlags
@@ -741,6 +744,8 @@ private fun ToolsTab(
     onComingSoon : (String) -> Unit
 ) {
     var moCogo by remember { mutableStateOf(false) }
+    // Thẻ nào của hộp thoại COGO sẽ mở sẵn; -1 = chưa mở hộp thoại.
+    var congCuCogo by remember { mutableStateOf(-1) }
 
     LazyVerticalGrid(
         columns               = GridCells.Fixed(3),
@@ -774,23 +779,37 @@ private fun ToolsTab(
         }
     }
 
+    // 4 mục COGO gọi THẲNG vào CogoDialog, mở sẵn đúng thẻ.
+    // Trước đây chúng gọi onComingSoon(...) — báo "sắp có" trong khi chức năng
+    // đã chạy từ lâu ở màn Bản đồ và Cắm mốc; người dùng phải đi vòng qua đó
+    // mới tính được. Chỉ "Tính khối lượng" là chưa làm thật.
     if (moCogo) {
         MenuGop(
             tieuDe = "COGO — hình học toạ độ",
             onDong = { moCogo = false },
             muc = listOf(
                 MucGop("Nghịch đảo", "Hai điểm → phương vị, khoảng cách") {
-                    onComingSoon("COGO — nghịch đảo") },
+                    congCuCogo = CogoTool.NGHICH_DAO; moCogo = false },
                 MucGop("Điểm theo phương vị", "Điểm gốc + góc + cạnh → điểm mới") {
-                    onComingSoon("COGO — điểm theo phương vị") },
+                    congCuCogo = CogoTool.DIEM_PHUONG_VI; moCogo = false },
                 MucGop("Giao hội", "Giao hội cạnh / góc") {
-                    onComingSoon("COGO — giao hội") },
+                    congCuCogo = CogoTool.GIAO_HOI; moCogo = false },
                 MucGop("Tính diện tích", "Diện tích, chu vi đa giác") {
-                    onComingSoon("Tính diện tích") },
+                    congCuCogo = CogoTool.DIEN_TICH; moCogo = false },
                 MucGop("Tính khối lượng", "Đào/đắp theo DTM (chưa làm)") {
                     onComingSoon("Tính khối lượng") }
             ),
             coDuAn = true
+        )
+    }
+
+    if (congCuCogo >= 0) {
+        val cogoVm: CogoToolsViewModel = hiltViewModel()
+        val diem by cogoVm.points.collectAsStateWithLifecycle()
+        CogoDialog(
+            onDismiss    = { congCuCogo = -1 },
+            points       = diem,
+            congCuBanDau = congCuCogo
         )
     }
 }
