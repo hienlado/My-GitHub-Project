@@ -45,6 +45,8 @@ fun ConnectionScreen(
     onSkip      : () -> Unit = {},    // Bỏ qua kết nối, vào app offline
     viewModel   : ConnectionViewModel = hiltViewModel()
 ) {
+    // Hộp thoại DÒ máy chưa có trong danh sách (STEC và mọi máy lạ khác)
+    var moDoMayMoi by remember { mutableStateOf(false) }
     val permissionState by viewModel.permissionState.collectAsStateWithLifecycle()
     val rtkDevices      by viewModel.rtkDevices.collectAsStateWithLifecycle()
     val otherDevices    by viewModel.otherDevices.collectAsStateWithLifecycle()
@@ -173,6 +175,20 @@ fun ConnectionScreen(
                     }
                 }
 
+                // ── Dò máy chưa có trong danh sách ───────────
+                // Đặt TRƯỚC lịch sử: gặp máy lạ là lúc bí nhất, nút phải nằm
+                // chỗ dễ thấy chứ không nằm dưới một danh sách dài.
+                item {
+                    OutlinedButton(
+                        onClick = { moDoMayMoi = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Search, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Dò máy mới (máy lạ chưa có trong danh sách)")
+                    }
+                }
+
                 // ── Lịch sử thiết bị ─────────────────────────
                 if (recentDevices.isNotEmpty()) {
                     item {
@@ -272,6 +288,10 @@ fun ConnectionScreen(
                 }
             }
         }
+    }
+
+    if (moDoMayMoi) {
+        DoMayMoiDialog(viewModel = viewModel, onDong = { moDoMayMoi = false })
     }
 }
 

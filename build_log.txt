@@ -1,3 +1,4 @@
+Starting a Gradle Daemon, 1 busy Daemon could not be reused, use --status for details
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
@@ -33,19 +34,17 @@
 > Task :app:processDebugManifestForPackage
 > Task :app:processDebugResources
 > Task :app:kspDebugKotlin
-
 > Task :app:compileDebugKotlin
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/core/gnss/ntrip/NtripProxyServer.kt:85:22 'val connectionInfo: WifiInfo!' is deprecated. Deprecated in Java.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/core/gnss/ntrip/NtripProxyServer.kt:85:38 'val ipAddress: Int' is deprecated. Deprecated in Java.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/core/gnss/ntrip/NtripProxyServer.kt:86:46 'static fun formatIpAddress(p0: Int): String!' is deprecated. Deprecated in Java.
-w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/deviceinfo/DeviceInfoScreen.kt:63:44 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/core/network/DeviceProbe.kt:87:57 No cast needed.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/connection/ConnectionScreen.kt:211:21 'fun TabRow(selectedTabIndex: Int, modifier: Modifier = ..., containerColor: Color = ..., contentColor: Color = ..., indicator: ComposableFunction1<List<TabPosition>, Unit> = ..., divider: ComposableFunction0<Unit> = ..., tabs: ComposableFunction0<Unit>): Unit' is deprecated. Replaced with PrimaryTabRow and SecondaryTabRow.
+w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/connection/ConnectionScreen.kt:659:27 'val Icons.Filled.BluetoothSearching: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.BluetoothSearching.
 w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/rtkmultidevice/ui/screens/main/MainScreen.kt:550:31 'val Icons.Filled.ListAlt: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ListAlt.
 
 > Task :app:compileDebugJavaWithJavac
-> Task :app:processDebugJavaRes UP-TO-DATE
-> Task :app:mergeDebugJavaResource UP-TO-DATE
+> Task :app:processDebugJavaRes
 > Task :app:hiltSyncDebug
 > Task :app:hiltAggregateDepsDebug UP-TO-DATE
+> Task :app:mergeDebugJavaResource
 > Task :app:hiltJavaCompileDebug
 > Task :app:transformDebugClassesWithAsm
 > Task :app:dexBuilderDebug
@@ -54,6 +53,6 @@ w: file:///D:/Claude%20AI%20Project/RTK_MultiDevice/app/src/main/java/com/hien/r
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 52s
-42 actionable tasks: 15 executed, 27 up-to-date
+BUILD SUCCESSFUL in 3m 35s
+42 actionable tasks: 17 executed, 25 up-to-date
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html

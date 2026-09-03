@@ -68,7 +68,21 @@ object WifiInfoHelper {
         // Sinov M6 Pro: WiFi "GNSS-3366525"; máy CHÍNH LÀ điểm phát → gateway, cổng 9901
         Profile("Sinov M6 Pro", Regex("^GNSS[-_]", RegexOption.IGNORE_CASE),
             hosts = listOf("", "192.168.1.1"), ports = listOf(9901, 2000)),
+        // STEC: WiFi thường chỉ là DÃY SỐ (số máy), máy ở 192.168.10.1.
+        // ⚠ CHƯA KIỂM CHỨNG trên máy thật — địa chỉ và dải cổng lấy từ tài liệu
+        //   hãng, chưa ai nối thử. Dò bằng "Dò máy mới" rồi lưu hồ sơ đè lên.
+        Profile("STEC (chưa kiểm chứng)", Regex("^[0-9]{6,}$"),
+            hosts = listOf("192.168.10.1", ""), ports = listOf(9000, 2000, 8000, 9901, 8888)),
     )
+
+    /**
+     * Hồ sơ TRONG MÃ NGUỒN + hồ sơ NGƯỜI DÙNG TỰ DÒ, gộp làm một.
+     *
+     * Hồ sơ tự dò đặt TRƯỚC: người đo vừa dò được máy thật ngoài hiện trường
+     * thì hồ sơ ấy đáng tin hơn dòng hard-code chưa ai kiểm chứng.
+     */
+    fun profilesAll(context: Context): List<Profile> =
+        DeviceProfileStore.tatCa(context).mapNotNull { it.toWifiProfile() } + PROFILES
 
     fun profileFor(ssid: String?): Profile? =
         ssid?.let { s -> PROFILES.firstOrNull { it.ssidRegex.containsMatchIn(s) } }
