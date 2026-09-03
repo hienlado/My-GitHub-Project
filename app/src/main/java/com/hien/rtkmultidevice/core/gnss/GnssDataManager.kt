@@ -286,6 +286,25 @@ class GnssDataManager @Inject constructor(
                         return@let
                     }
 
+                    // 🔴 BỎ GGA CŨ TỒN ĐỌNG TRONG ĐỆM — trả giá 03/09.
+                    //
+                    // Lúc vừa mở kết nối, đệm Bluetooth có thể còn nguyên một
+                    // xâu câu NMEA cũ. Log máy STEC: 12 câu giờ 00:56:33–00:56:43
+                    // đổ về trong 450 ms rồi mới nhảy sang 01:26:11 — tức app đã
+                    // đổi ra VN-2000 và hiển thị 12 vị trí CŨ 30 PHÚT như đang
+                    // sống. Bấm "Đo điểm" đúng lúc đó là ghi nhầm toạ độ cũ.
+                    //
+                    // Dấu hiệu nhận biết chắc chắn: GIỜ ĐI LÙI. Máy thu chạy
+                    // bình thường không bao giờ gửi giờ nhỏ hơn câu trước.
+                    // Chừa 86.000 s cho trường hợp qua nửa đêm (giờ quay vòng).
+                    val tMoi = giayUtc(gga.utcTime)
+                    val tCu  = giayUtc(_latestGga.value?.utcTime ?: "")
+                    if (tMoi >= 0 && tCu >= 0 && tMoi < tCu - 2 && (tCu - tMoi) < 86_000) {
+                        Log.w(TAG, "Bỏ GGA tồn đọng: giờ ${gga.utcTime} đi LÙI so với " +
+                                   "${_latestGga.value?.utcTime} (${"%.0f".format(tCu - tMoi)} s)")
+                        return@let
+                    }
+
                     lastRawGga = sentence          // lưu để gửi NTRIP
                     _latestGga.value = gga
 
@@ -635,6 +654,34 @@ class GnssDataManager @Inject constructor(
             return
         }
 
+        // 🔴 CHẶN CHẾ ĐỘ SAI — đã trả giá 03/09 với máy STEC nối Bluetooth.
+        //
+        // Proxy chỉ có nghĩa khi máy thu TỰ NỐI VÀO điện thoại qua WiFi (Sinov,
+        // CHCNav): điện thoại mở ServerSocket, máy thu đóng vai RTK Client.
+        // Nối bằng Bluetooth thì máy thu không có đường nào nối ngược lại, và
+        // điện thoại cũng không có IP WiFi — proxy bind vào 0.0.0.0 rồi ngồi
+        // chờ một kết nối không bao giờ tới. Máy đứng SINGLE, log trông vẫn
+        // "bình thường": "NTRIP Proxy lắng nghe tại 0.0.0.0:2101".
+        //
+        // Đường đúng cho Bluetooth là startNtrip(): app tự lấy RTCM qua 4G rồi
+        // GHI THẲNG xuống kết nối bằng connection.sendBytes().
+        val ipWifi = ntripProxyServer?.getPhoneWifiIp()
+            ?: com.hien.rtkmultidevice.core.network.WifiInfoHelper.phoneIp(context)
+        // "0.0.0.0" = WiFi tắt (formatIpAddress(0)); "???" = không đọc được
+        // WifiManager. Cả hai đều không phải IP nối được.
+        if (ipWifi.isNullOrBlank() || ipWifi.startsWith("0.") || ipWifi == "???") {
+            _ntripState.value = NtripState.Error(
+                "Chế độ Proxy cần điện thoại nối WiFi CỦA MÁY THU.\n" +
+                "Đang nối Bluetooth (hoặc chưa có IP WiFi) — máy thu không thể " +
+                "nối ngược vào điện thoại.\n\n" +
+                "→ Dùng nút \"Bắt đầu NTRIP\" thay cho \"Proxy\": app lấy cải chính " +
+                "qua 4G rồi gửi thẳng xuống máy qua chính đường đang kết nối."
+            )
+            Log.e(TAG, "Từ chối khởi động Proxy: không có IP WiFi (ip=$ipWifi). " +
+                       "Bluetooth phải dùng startNtrip().")
+            return
+        }
+
         ntripProxyJob?.cancel()
         ntripProxyServer?.stop()
         ntripProxyServer = NtripProxyServer(config, context, proxyPort)
@@ -652,6 +699,22 @@ class GnssDataManager @Inject constructor(
                 )
             }
         }
+    }
+
+    /**
+     * "hhmmss.ss" -> số giây trong ngày. Trả -1 nếu không đọc được.
+     *
+     * Dùng để phát hiện GGA tồn đọng (giờ đi lùi). Không dùng đồng hồ điện
+     * thoại làm mốc: điện thoại và máy thu có thể lệch giờ, mà cái cần so là
+     * giờ GIỮA CÁC CÂU với nhau.
+     */
+    private fun giayUtc(s: String): Double {
+        if (s.length < 6) return -1.0
+        return runCatching {
+            s.substring(0, 2).toInt() * 3600.0 +
+            s.substring(2, 4).toInt() * 60.0 +
+            s.substring(4).toDouble()
+        }.getOrDefault(-1.0)
     }
 
     /** Lấy IP gateway của mạng WiFi hiện tại (= địa chỉ web interface thiết bị GNSS) */
