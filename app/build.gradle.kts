@@ -21,7 +21,7 @@ android {
         targetSdk             = 36
         // versionCode = SỐ BUILD (i). Tăng 1 mỗi lần build. Phải là số nguyên
         // tăng dần, nếu không `adb install -r` sẽ báo VERSION_DOWNGRADE.
-        versionCode           = 8
+        versionCode           = 9
         versionName           = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

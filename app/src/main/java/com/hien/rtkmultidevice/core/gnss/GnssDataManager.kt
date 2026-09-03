@@ -562,9 +562,11 @@ class GnssDataManager @Inject constructor(
                             }
                         }
                     }
+                    demBanTinRtcm(rtcmBytes)
                     // Log định kỳ: gói đầu tiên + mỗi 50 gói tiếp
                     if (rtcmPacketsForwarded == 1 || rtcmPacketsForwarded % 50 == 0) {
                         Log.d(TAG, "RTCM → thiết bị ✓  gói #$rtcmPacketsForwarded  ${rtcmBytes.size}B  tổng=$rtcmBytesForwarded B")
+                        Log.d(TAG, "RTCM bản tin đã gửi: " + moTaBanTinRtcm())
                     }
                     _ntripState.value = withForwardStats(ntripClient?.state?.value ?: _ntripState.value)
                 }.onFailure { error ->
@@ -699,6 +701,47 @@ class GnssDataManager @Inject constructor(
                 )
             }
         }
+    }
+
+    // ── Đếm loại bản tin RTCM đang gửi cho máy thu ──────────────────────────
+    //
+    // "Đã gửi 785 gói" chỉ nói ĐƯỜNG ỐNG thông, không nói TRONG ỐNG có gì.
+    // Máy thu nhận đủ byte mà vẫn SINGLE thì câu hỏi tiếp theo luôn là: caster
+    // gửi những bản tin nào? Thiếu 1005/1006 (toạ độ trạm gốc) thì máy không có
+    // điểm tựa để giải; thiếu MSM (1074/1084/1094/1124) thì không có trị đo.
+    // Đếm ở đây để logcat trả lời được câu đó, khỏi phải đoán.
+    private val demRtcm = HashMap<Int, Int>()
+
+    private fun demBanTinRtcm(b: ByteArray) {
+        var i = 0
+        while (i + 5 < b.size) {
+            if (b[i] == 0xD3.toByte()) {
+                val len = ((b[i + 1].toInt() and 0x03) shl 8) or (b[i + 2].toInt() and 0xFF)
+                if (len in 1..1023 && i + 3 + len + 3 <= b.size) {
+                    val so = ((b[i + 3].toInt() and 0xFF) shl 4) or
+                             ((b[i + 4].toInt() and 0xF0) shr 4)
+                    if (so in 1000..1300) {
+                        demRtcm[so] = (demRtcm[so] ?: 0) + 1
+                        i += 3 + len + 3
+                        continue
+                    }
+                }
+            }
+            i++
+        }
+    }
+
+    private fun moTaBanTinRtcm(): String {
+        if (demRtcm.isEmpty()) return "CHƯA NHẬN DIỆN ĐƯỢC BẢN TIN NÀO (dữ liệu không phải RTCM3?)"
+        val ds = demRtcm.entries.sortedBy { it.key }
+            .joinToString("  ") { "${it.key}×${it.value}" }
+        val coGoc = demRtcm.keys.any { it == 1005 || it == 1006 }
+        val coDo  = demRtcm.keys.any { it in 1071..1127 || it in 1001..1012 }
+        val thieu = buildString {
+            if (!coGoc) append("  ⚠ THIẾU 1005/1006 (toạ độ trạm gốc)")
+            if (!coDo)  append("  ⚠ THIẾU bản tin trị đo (MSM 107x/108x/109x/112x)")
+        }
+        return ds + thieu
     }
 
     /**
