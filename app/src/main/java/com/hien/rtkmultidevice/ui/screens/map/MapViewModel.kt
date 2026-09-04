@@ -438,6 +438,7 @@ class MapViewModel @Inject constructor(
         zoom    : Float,
         centerN : Double,
         centerE : Double,
+        nhanCanh: Boolean,
         toPdf   : Boolean
     ) {
         viewModelScope.launch {
@@ -447,7 +448,8 @@ class MapViewModel @Inject constructor(
                     com.hien.rtkmultidevice.data.datastore.AppSettings.ReportSettings(
                         donViTen = bb.donViTen, donViDaiDien = bb.donViDaiDien,
                         donViChucVu = bb.donViChucVu, donViDiaChi = bb.donViDiaChi,
-                        donViVpdd = bb.donViVpdd, noiCapGcn = bb.noiCapGcn
+                        donViVpdd = bb.donViVpdd, noiCapGcn = bb.noiCapGcn,
+                        nhanCanh = nhanCanh
                     )
                 )
 
@@ -487,7 +489,7 @@ class MapViewModel @Inject constructor(
                             BienBanSketch.draw(
                                 canvas, frame, verts,
                                 BienBanSketch.ParcelLabel(data.soThua, data.dienTich, data.loaiDat),
-                                nbs, zoom, centerN, centerE
+                                nbs, zoom, centerN, centerE, nhanCanh
                             )
                         },
                         qhSdd = sdd, qhXd = xd, qhVerts = verts, qhHoaVan = hoaVan

@@ -57,6 +57,7 @@ class AppSettings @Inject constructor(
         private val KEY_RPT_DIACHI   = stringPreferencesKey("rpt_dia_chi")
         private val KEY_RPT_VPDD     = stringPreferencesKey("rpt_vpdd")
         private val KEY_RPT_NOICAP   = stringPreferencesKey("rpt_noi_cap_gcn")
+        private val KEY_RPT_NHANCANH = booleanPreferencesKey("rpt_nhan_canh")
 
         // ── Lịch sử tìm kiếm (mỗi loại giữ 10 mục gần nhất) ──
         private val KEY_RECENT_SHEETS = stringPreferencesKey("recent_sheets")
@@ -168,7 +169,9 @@ class AppSettings @Inject constructor(
         val donViChucVu  : String = "",
         val donViDiaChi  : String = "",
         val donViVpdd    : String = "",
-        val noiCapGcn    : String = "Văn phòng đăng ký đất đai tỉnh Bà Rịa - Vũng Tàu"
+        val noiCapGcn    : String = "Văn phòng đăng ký đất đai tỉnh Bà Rịa - Vũng Tàu",
+        /** Ghi độ dài cạnh (m) lên sơ hoạ thửa ở trang 2. */
+        val nhanCanh     : Boolean = false
     )
 
     val reportSettingsFlow: Flow<ReportSettings> = context.dataStore.data.map { p ->
@@ -179,7 +182,8 @@ class AppSettings @Inject constructor(
             donViDiaChi  = p[KEY_RPT_DIACHI] ?: "",
             donViVpdd    = p[KEY_RPT_VPDD] ?: "",
             noiCapGcn    = p[KEY_RPT_NOICAP]
-                ?: "Văn phòng đăng ký đất đai tỉnh Bà Rịa - Vũng Tàu"
+                ?: "Văn phòng đăng ký đất đai tỉnh Bà Rịa - Vũng Tàu",
+            nhanCanh     = p[KEY_RPT_NHANCANH] ?: false
         )
     }
 
@@ -191,6 +195,7 @@ class AppSettings @Inject constructor(
             p[KEY_RPT_DIACHI]  = r.donViDiaChi
             p[KEY_RPT_VPDD]    = r.donViVpdd
             p[KEY_RPT_NOICAP]  = r.noiCapGcn
+            p[KEY_RPT_NHANCANH] = r.nhanCanh
         }
     }
 

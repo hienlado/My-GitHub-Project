@@ -2,6 +2,7 @@ package com.hien.rtkmultidevice.ui.screens.map
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -36,9 +37,11 @@ fun BienBanFormDialog(
     feature      : VectorLayerImporter.VectorFeature,
     neighbours   : List<BienBanSketch.NeighbourParcel>,
     initial      : BienBan,
+    /** Trạng thái đã lưu của tuỳ chọn ghi độ dài cạnh. */
+    nhanCanhBanDau : Boolean = false,
     onDismiss    : () -> Unit,
-    /** (nội dung, zoom, tâmN, tâmE, xuấtPdf) */
-    onExport     : (BienBan, Float, Double, Double, Boolean) -> Unit
+    /** (nội dung, zoom, tâmN, tâmE, ghiNhãnCạnh, xuấtPdf) */
+    onExport     : (BienBan, Float, Double, Double, Boolean, Boolean) -> Unit
 ) {
     // rawPoints VN-2000: (Easting, Northing) → (N, E)
     val verts = remember(feature.id) { feature.rawPoints.map { it.second to it.first } }
@@ -72,6 +75,7 @@ fun BienBanFormDialog(
     var zoom   by remember { mutableFloatStateOf(0.72f) }
     var offN   by remember { mutableDoubleStateOf(0.0) }   // dời tâm theo Bắc (m)
     var offE   by remember { mutableDoubleStateOf(0.0) }   // dời tâm theo Đông (m)
+    var nhanCanh by remember { mutableStateOf(nhanCanhBanDau) }
 
     fun build() = BienBan(
         ngay = ngay.toIntOrNull() ?: 1,
@@ -144,7 +148,8 @@ fun BienBanFormDialog(
                                 neighbours = neighbours,
                                 zoom = zoom,
                                 centerN = baseN + offN,
-                                centerE = baseE + offE
+                                centerE = baseE + offE,
+                                nhanCanh = nhanCanh
                             )
                         }
                     }
@@ -155,6 +160,11 @@ fun BienBanFormDialog(
                     }
                     Text("Phóng ${"%.1f".format(zoom)}×", fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { nhanCanh = !nhanCanh }) {
+                    Checkbox(checked = nhanCanh, onCheckedChange = { nhanCanh = it })
+                    Text("Ghi độ dài cạnh (m) lên sơ hoạ", fontSize = 12.sp)
                 }
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -207,13 +217,13 @@ fun BienBanFormDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onExport(build(), zoom, baseN + offN, baseE + offE, true) }) {
+            TextButton(onClick = { onExport(build(), zoom, baseN + offN, baseE + offE, nhanCanh, true) }) {
                 Text("Xuất PDF", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             Row {
-                TextButton(onClick = { onExport(build(), zoom, baseN + offN, baseE + offE, false) }) {
+                TextButton(onClick = { onExport(build(), zoom, baseN + offN, baseE + offE, nhanCanh, false) }) {
                     Text("Lưu XML")
                 }
                 TextButton(onClick = onDismiss) { Text("Đóng") }

@@ -2,11 +2,14 @@ package com.hien.rtkmultidevice.report
 
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import com.hien.rtkmultidevice.ui.screens.map.VectorLayerImporter
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -27,6 +30,19 @@ import kotlin.math.sqrt
  */
 object BienBanSketch {
 
+    // ── QUY ĐỔI MILIMÉT GIẤY ─────────────────────────────────────────────
+    // Nét đứt của lớp nền phải đúng 2,5 mm / 1,5 mm TRÊN GIẤY IN, không phải
+    // 2,5 mét ngoài thực địa — nên nó không được nhân theo tỉ lệ bản đồ.
+    // Trang PDF dựng ở 72 dpi (A4 = 595 × 842 pt) nên 1 mm = 72/25,4 pt.
+    // Khung xem trước trong app lại vẽ bằng PIXEL màn hình, rộng gấp mấy lần,
+    // nên phải quy đổi theo bề rộng khung để xem sao thì in vậy.
+    const val PT_MOI_MM        = 72f / 25.4f      // 2,8346 pt cho 1 mm
+    const val KHUNG_IN_RONG_PT = 235f             // khung sơ hoạ trên A4
+
+    /** Số pixel ứng với 1 mm giấy, suy từ bề rộng khung đang vẽ. */
+    fun mmTheoKhung(frameWidth: Float): Float =
+        (frameWidth / KHUNG_IN_RONG_PT) * PT_MOI_MM
+
     fun draw(
         canvas       : Canvas,
         frame        : RectF,
@@ -36,7 +52,9 @@ object BienBanSketch {
         zoom         : Float = 0.72f,
         /** Tâm khung do người dùng chọn (N, E). null = lấy tâm thửa chính. */
         centerN      : Double? = null,
-        centerE      : Double? = null
+        centerE      : Double? = null,
+        /** Ghi độ dài (mét) lên từng cạnh thửa chính. */
+        nhanCanh     : Boolean = false
     ) {
         if (mainVertices.size < 3) return
 
@@ -69,9 +87,14 @@ object BienBanSketch {
         val mainPts = mainVertices.map { (n, e) -> px(e) to py(n) }
 
         // ── 1. Thửa giáp biên (nền) ──
+        // Lớp nền địa chính vẽ NÉT ĐỨT: liền 2,5 mm — hở 1,5 mm, tính theo
+        // milimét GIẤY. Mục đích là tách bạch nền tham chiếu với thửa chính
+        // (nét liền) ngay từ cái nhìn đầu tiên, khỏi phải đọc nhãn.
+        val mm = mmTheoKhung(frame.width())
         val nbStroke = Paint().apply {
             isAntiAlias = true; style = Paint.Style.STROKE
             strokeWidth = 0.7f; color = Color.rgb(130, 130, 130)
+            pathEffect = DashPathEffect(floatArrayOf(2.5f * mm, 1.5f * mm), 0f)
         }
         val nbLabelP = Paint().apply {
             isAntiAlias = true; color = Color.rgb(80, 80, 80)
@@ -122,6 +145,58 @@ object BienBanSketch {
             canvas.drawLine(x - half, y + 2f, x + half, y + 2f, Paint().apply {
                 isAntiAlias = true; color = Color.rgb(80, 80, 80); strokeWidth = 0.7f
             })
+        }
+
+        // ── 3b. NHÃN ĐỘ DÀI CẠNH (mét) — tuỳ chọn ──
+        // Độ dài lấy từ TOẠ ĐỘ VN-2000 gốc (mét), không đo trên giấy rồi chia
+        // tỉ lệ: chia tỉ lệ là cộng thêm sai số làm tròn của phép chiếu.
+        // Chữ xoay theo cạnh và luôn lật về phía đọc xuôi (−90°…+90°), đặt lệch
+        // RA NGOÀI thửa để không đè nhãn số thửa ở giữa.
+        if (nhanCanh && mainVertices.size >= 3) {
+            val cTmp = centroid(mainPts)
+            val canhP = Paint().apply {
+                isAntiAlias = true; color = Color.rgb(20, 20, 20)
+                textSize = 7.5f; textAlign = Paint.Align.CENTER
+            }
+            val n = mainVertices.size
+            for (i in 0 until n) {
+                val (n1, e1) = mainVertices[i]
+                val (n2, e2) = mainVertices[(i + 1) % n]
+                val dai = hypot(n2 - n1, e2 - e1)
+                if (dai < 0.005) continue                    // cạnh trùng đỉnh
+                val nhan = "%.2f".format(dai)
+
+                val (x1, y1) = mainPts[i]
+                val (x2, y2) = mainPts[(i + 1) % n]
+                val daiGiay = hypot((x2 - x1).toDouble(), (y2 - y1).toDouble()).toFloat()
+                // Cạnh ngắn hơn bề ngang chữ thì ghi vào cũng không đọc được
+                if (daiGiay < canhP.measureText(nhan) * 1.05f) continue
+
+                var goc = Math.toDegrees(
+                    atan2((y2 - y1).toDouble(), (x2 - x1).toDouble())).toFloat()
+                if (goc > 90f)  goc -= 180f
+                if (goc < -90f) goc += 180f
+
+                val mx = (x1 + x2) / 2f; val my = (y1 + y2) / 2f
+                var nx = -(y2 - y1) / daiGiay; var ny = (x2 - x1) / daiGiay
+                // Pháp tuyến cùng phía với vector tâm→trung điểm cạnh = hướng RA NGOÀI
+                if (nx * (mx - cTmp.first) + ny * (my - cTmp.second) < 0f) { nx = -nx; ny = -ny }
+
+                var dat = false
+                for (d in floatArrayOf(5.5f, 9f, 13f)) {
+                    val lx = mx + nx * d; val ly = my + ny * d
+                    val r = textRect(nhan, lx, ly, canhP, padX = 2f, padY = 2f)
+                    if (taken.none { RectF.intersects(it, r) } && frame.contains(lx, ly)) {
+                        taken += r
+                        canvas.save()
+                        canvas.rotate(goc, lx, ly)
+                        drawHaloText(canvas, nhan, lx, ly + canhP.textSize * 0.35f, canhP)
+                        canvas.restore()
+                        dat = true; break
+                    }
+                }
+                if (!dat) { /* chật quá thì bỏ nhãn cạnh này, giữ hình đọc được */ }
+            }
         }
 
         // ── 4. Số hiệu đỉnh — đẩy RA NGOÀI theo hướng từ tâm, chống đè ──

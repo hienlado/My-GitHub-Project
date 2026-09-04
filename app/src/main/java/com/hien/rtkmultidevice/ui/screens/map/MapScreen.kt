@@ -623,9 +623,10 @@ fun MapScreen(
             feature    = f,
             neighbours = remember(f.id, nbRefresh) { viewModel.neighboursOf(f) },
             initial    = remember(f.id) { viewModel.bienBanDefaults(f) },
+            nhanCanhBanDau = viewModel.reportSettings.collectAsStateWithLifecycle().value.nhanCanh,
             onDismiss  = { bienBanFeature = null },
-            onExport   = { bb, zoom, cN, cE, toPdf ->
-                viewModel.exportBienBan(f, bb, zoom, cN, cE, toPdf)
+            onExport   = { bb, zoom, cN, cE, nhanCanh, toPdf ->
+                viewModel.exportBienBan(f, bb, zoom, cN, cE, nhanCanh, toPdf)
                 if (toPdf) bienBanFeature = null      // XML thì giữ form để sửa tiếp
             }
         )
