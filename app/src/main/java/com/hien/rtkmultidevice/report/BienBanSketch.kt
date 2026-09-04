@@ -102,18 +102,49 @@ object BienBanSketch {
         }
         val nbBoxes = ArrayList<Pair<String, Pair<Float, Float>>>()
 
+        // 🔴 VẼ THEO CẠNH DUY NHẤT, KHÔNG VẼ THEO TỪNG VÙNG. Trả giá 03/09/2026.
+        // Vẽ khép kín từng thửa thì mỗi ranh chung bị vẽ HAI LẦN, mỗi lần một
+        // pha nét đứt khác nhau (dấu chấm bắt đầu từ đỉnh đầu của mỗi thửa, hai
+        // thửa lại đi ngược chiều nhau). Hai hàng nét đứt lệch pha chồng lên
+        // nhau thì phần hở của hàng này bị phần liền của hàng kia lấp — ra
+        // ĐÚNG MỘT NÉT LIỀN. Đó là lý do chỉ MỘT VÀI ranh còn liền: đúng những
+        // ranh có hai thửa kề nhau cùng nằm trong khung.
+        // Cùng bài học với lớp `_luoi_` bên Nhánh 40 — ranh chung phải gộp.
+        //
+        // Ranh trùng với thửa CHÍNH cũng bỏ luôn: thửa chính vẽ sau bằng nét
+        // liền, để nét đứt bên dưới chỉ tổ lòi ra thành viền răng cưa.
+        val daVe = HashSet<Long>()
+        fun ma(a: Pair<Double, Double>, b: Pair<Double, Double>): Long {
+            // Lượng tử hoá 1 cm rồi trộn hai đầu theo thứ tự cố định → cạnh
+            // A→B và B→A cho cùng một mã.
+            val ax = Math.round(a.first * 100.0); val ay = Math.round(a.second * 100.0)
+            val bx = Math.round(b.first * 100.0); val by = Math.round(b.second * 100.0)
+            val k1 = ax * 1_000_003L + ay
+            val k2 = bx * 1_000_003L + by
+            return if (k1 <= k2) k1 * 31L + k2 else k2 * 31L + k1
+        }
+        // Ranh của thửa chính coi như đã vẽ
+        for (i in mainVertices.indices) {
+            daVe += ma(mainVertices[i], mainVertices[(i + 1) % mainVertices.size])
+        }
+
+        val nenPath = Path()
         neighbours.forEach { nb ->
             if (nb.vertices.size < 3) return@forEach
-            val pts = nb.vertices.map { (n, e) -> px(e) to py(n) }
-            val path = Path()
-            pts.forEachIndexed { i, (x, y) -> if (i == 0) path.moveTo(x, y) else path.lineTo(x, y) }
-            path.close()
-            canvas.drawPath(path, nbStroke)
+            val v = nb.vertices
+            for (i in v.indices) {
+                val a = v[i]; val b = v[(i + 1) % v.size]
+                if (!daVe.add(ma(a, b))) continue          // ranh chung, đã có rồi
+                // Ranh sát mép thửa chính (sau khi lọc đỉnh có thể lệch vài cm)
+                if (satRanhChinh(a, mainVertices) && satRanhChinh(b, mainVertices)) continue
+                nenPath.moveTo(px(a.second), py(a.first))
+                nenPath.lineTo(px(b.second), py(b.first))
+            }
             if (nb.soThua.isNotBlank()) {
-                val cpt = centroid(pts)
-                nbBoxes += nb.soThua to cpt
+                nbBoxes += nb.soThua to centroid(v.map { (n, e) -> px(e) to py(n) })
             }
         }
+        canvas.drawPath(nenPath, nbStroke)
 
         // ── 2. Thửa chính: TÔ NỀN + viền mảnh ──
         val mainPath = Path()
@@ -288,6 +319,30 @@ object BienBanSketch {
         // ── 6. Hướng Bắc + thước tỉ lệ (có nền che) ──
         drawNorth(canvas, frame.right - 26f, frame.top + 26f)
         drawScaleBar(canvas, frame.left + 14f, frame.bottom - 12f, scale)
+    }
+
+    /** Điểm nằm cách đường bao thửa chính dưới 0,25 m — coi như trùng ranh. */
+    private fun satRanhChinh(
+        p: Pair<Double, Double>, bao: List<Pair<Double, Double>>
+    ): Boolean {
+        if (bao.size < 2) return false
+        for (i in bao.indices) {
+            val a = bao[i]; val b = bao[(i + 1) % bao.size]
+            if (cachDoan(p, a, b) < 0.25) return true
+        }
+        return false
+    }
+
+    /** Khoảng cách từ điểm tới ĐOẠN thẳng ab (không phải tới đường thẳng). */
+    private fun cachDoan(
+        p: Pair<Double, Double>, a: Pair<Double, Double>, b: Pair<Double, Double>
+    ): Double {
+        val dx = b.first - a.first; val dy = b.second - a.second
+        val l2 = dx * dx + dy * dy
+        if (l2 < 1e-12) return hypot(p.first - a.first, p.second - a.second)
+        var t = ((p.first - a.first) * dx + (p.second - a.second) * dy) / l2
+        t = t.coerceIn(0.0, 1.0)
+        return hypot(p.first - (a.first + t * dx), p.second - (a.second + t * dy))
     }
 
     data class ParcelLabel(

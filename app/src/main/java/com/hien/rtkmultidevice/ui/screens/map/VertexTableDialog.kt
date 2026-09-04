@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,10 +69,36 @@ fun VertexTableDialog(
     val hasDist  = currentNorthing != null && currentEasting != null
     val listState = rememberLazyListState()
 
+    // ── LỌC ĐỈNH THỪA — chỉ với VÙNG (thửa đất) ──────────────────────────
+    // Bảng này chính là "bảng toạ độ" đi kèm biên bản, nên nó phải đánh số
+    // đỉnh GIỐNG HỆT sơ hoạ ở trang 2. Lọc bên này mà không lọc bên kia là
+    // biên bản ghi mốc số 7 còn sơ hoạ chỉ tới số 5.
+    // ĐƯỜNG và ĐIỂM giữ nguyên: chúng dùng để cắm mốc từng đỉnh một, bỏ bớt
+    // đỉnh ở đó là bỏ mất mốc người ta cần ra thực địa tìm.
+    val laVung = feature.type == VectorLayerImporter.FeatureType.POLYGON
+    val diem = remember(feature.id, laVung) {
+        if (!laVung) feature.rawPoints
+        else com.hien.rtkmultidevice.report.LocDinh
+            .loc(feature.rawPoints.map { it.second to it.first })
+            .map { it.second to it.first }          // trả về (E, N) như rawPoints
+    }
+    val soDinhBo = remember(diem) {
+        (feature.rawPoints.size - diem.size).coerceAtLeast(0)
+    }
+
+    // Đỉnh được chạm trên bản đồ mang chỉ số của danh sách GỐC. Sau khi lọc,
+    // chỉ số lệch đi — nên dò lại theo TOẠ ĐỘ, không dùng thẳng chỉ số.
+    val highlightLoc = remember(highlightIdx, diem) {
+        val g = feature.rawPoints.getOrNull(highlightIdx) ?: return@remember -1
+        diem.indices.minByOrNull {
+            hypot(diem[it].first - g.first, diem[it].second - g.second)
+        } ?: -1
+    }
+
     // Cuộn đến đỉnh được chạm
-    LaunchedEffect(highlightIdx) {
-        if (highlightIdx in feature.rawPoints.indices) {
-            listState.scrollToItem(highlightIdx.coerceAtLeast(0))
+    LaunchedEffect(highlightLoc) {
+        if (highlightLoc in diem.indices) {
+            listState.scrollToItem(highlightLoc.coerceAtLeast(0))
         }
     }
 
@@ -81,7 +108,9 @@ fun VertexTableDialog(
             Column {
                 Text("Bảng toạ độ đỉnh", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Text(
-                    "$typeLabel \"$baseLbl\" — ${feature.rawPoints.size} đỉnh • chạm dòng để cắm mốc",
+                    "$typeLabel \"$baseLbl\" — ${diem.size} đỉnh" +
+                    (if (soDinhBo > 0) " (đã gộp $soDinhBo)" else "") +
+                    " • chạm dòng để cắm mốc",
                     fontSize = 11.sp,
                     color    = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -91,7 +120,7 @@ fun VertexTableDialog(
             Column {
                 // ── Hành động chính — đặt ở ĐẦU để luôn nhìn thấy ──
                 Row(modifier = Modifier.fillMaxWidth()) {
-                    if (onExportPdf != null && feature.rawPoints.size >= 3) {
+                    if (onExportPdf != null && diem.size >= 3) {
                         Button(
                             onClick = onExportPdf,
                             modifier = Modifier.weight(1f)
@@ -100,7 +129,7 @@ fun VertexTableDialog(
                     }
                     // Đưa toàn bộ đỉnh sang ngăn "Đỉnh thửa" ở Danh sách để
                     // định vị điểm / cạnh / cả đường bao.
-                    if (onSendToList != null && feature.rawPoints.size >= 2) {
+                    if (onSendToList != null && diem.size >= 2) {
                         OutlinedButton(
                             onClick = { onSendToList(); onDismiss() },
                             modifier = Modifier.weight(1f)
@@ -128,17 +157,17 @@ fun VertexTableDialog(
 
                 // ── Các dòng đỉnh ───────────────────────────
                 LazyColumn(state = listState, modifier = Modifier.heightIn(max = 400.dp)) {
-                    itemsIndexed(feature.rawPoints) { idx, raw ->
+                    itemsIndexed(diem) { idx, raw ->
                         // VN-2000: raw.first = Easting (Y), raw.second = Northing (X)
                         val easting  = raw.first
                         val northing = raw.second
-                        val vLabel   = vertexLabel(feature, baseLbl, idx)
+                        val vLabel   = vertexLabel(feature, baseLbl, idx, diem.lastIndex)
                         val dist = if (hasDist)
                             hypot(northing - currentNorthing!!, easting - currentEasting!!)
                         else null
 
                         Surface(
-                            color = if (idx == highlightIdx)
+                            color = if (idx == highlightLoc)
                                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
                             else Color.Transparent,
                             modifier = Modifier
@@ -192,13 +221,15 @@ fun VertexTableDialog(
 private fun vertexLabel(
     feature : VectorLayerImporter.VectorFeature,
     baseLbl : String,
-    idx     : Int
+    idx     : Int,
+    /** Chỉ số đỉnh cuối SAU KHI LỌC — không dùng feature.rawPoints.lastIndex nữa. */
+    lastIdx : Int
 ): String = when (feature.type) {
     VectorLayerImporter.FeatureType.POINT -> baseLbl
     else -> when (idx) {
-        0                            -> "$baseLbl-Đầu"
-        feature.rawPoints.lastIndex  -> "$baseLbl-Cuối"
-        else                         -> "$baseLbl-Đ$idx"
+        0       -> "$baseLbl-Đầu"
+        lastIdx -> "$baseLbl-Cuối"
+        else    -> "$baseLbl-Đ$idx"
     }
 }
 

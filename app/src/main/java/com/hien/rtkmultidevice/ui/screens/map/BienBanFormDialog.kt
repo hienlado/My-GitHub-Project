@@ -44,7 +44,16 @@ fun BienBanFormDialog(
     onExport     : (BienBan, Float, Double, Double, Boolean, Boolean) -> Unit
 ) {
     // rawPoints VN-2000: (Easting, Northing) → (N, E)
-    val verts = remember(feature.id) { feature.rawPoints.map { it.second to it.first } }
+    // Lọc đỉnh thừa NGAY TỪ ĐÂY: khung xem trước, bảng mốc trong form và bản
+    // PDF xuất ra đều phải đánh số đỉnh giống nhau. Lọc ở ba nơi khác nhau là
+    // sớm muộn cũng lệch.
+    val vertsGoc = remember(feature.id) { feature.rawPoints.map { it.second to it.first } }
+    val verts    = remember(vertsGoc) {
+        com.hien.rtkmultidevice.report.LocDinh.loc(vertsGoc)
+    }
+    val soDinhBo = remember(verts) {
+        com.hien.rtkmultidevice.report.LocDinh.soDinhDaBo(vertsGoc, verts)
+    }
     val baseN = remember(verts) { (verts.minOf { it.first } + verts.maxOf { it.first }) / 2.0 }
     val baseE = remember(verts) { (verts.minOf { it.second } + verts.maxOf { it.second }) / 2.0 }
     val spanN = remember(verts) { (verts.maxOf { it.first } - verts.minOf { it.first }).coerceAtLeast(1.0) }
@@ -160,6 +169,14 @@ fun BienBanFormDialog(
                     }
                     Text("Phóng ${"%.1f".format(zoom)}×", fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (soDinhBo > 0) {
+                    Text(
+                        "Đã gộp $soDinhBo đỉnh thừa (gần nhau < 0,20 m hoặc lệch " +
+                        "đường thẳng < 0,02 m) — sơ hoạ và bảng toạ độ còn ${verts.size} đỉnh.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.clickable { nhanCanh = !nhanCanh }) {

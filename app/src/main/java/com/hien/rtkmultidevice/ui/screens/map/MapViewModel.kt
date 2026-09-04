@@ -315,7 +315,11 @@ class MapViewModel @Inject constructor(
             donViTen = rpt.donViTen, donViDaiDien = rpt.donViDaiDien,
             donViChucVu = rpt.donViChucVu, donViDiaChi = rpt.donViDiaChi,
             donViVpdd = rpt.donViVpdd, noiCapGcn = rpt.noiCapGcn,
-            moc = BienBan.buildMoc(feature.rawPoints.map { it.second to it.first })
+            // Lọc đỉnh thừa TRƯỚC khi dựng bảng — bảng toạ độ và sơ hoạ phải
+            // đánh số giống hệt nhau, nên cả hai phải lọc bằng cùng một hàm.
+            moc = BienBan.buildMoc(
+                com.hien.rtkmultidevice.report.LocDinh.loc(
+                    feature.rawPoints.map { it.second to it.first }))
         )
     }
 
@@ -453,7 +457,8 @@ class MapViewModel @Inject constructor(
                     )
                 )
 
-                val verts = feature.rawPoints.map { it.second to it.first }
+                val verts = com.hien.rtkmultidevice.report.LocDinh.loc(
+                    feature.rawPoints.map { it.second to it.first })
                 // Lưu vào TẢI XUỐNG — Android 11+ chặn Android/data/<package>
                 val base  = "BBMG-${bb.soThua.ifBlank { "thua" }.replace(Regex("[^A-Za-z0-9]"), "_")}"
 
