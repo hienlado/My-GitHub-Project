@@ -47,6 +47,6 @@
 > Task :app:createDebugApkListingFileRedirect UP-TO-DATE
 > Task :app:assembleDebug UP-TO-DATE
 
-BUILD SUCCESSFUL in 3s
+BUILD SUCCESSFUL in 2s
 42 actionable tasks: 42 up-to-date
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
